@@ -264,6 +264,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
                     h += tsizes[rows[r][0]][1] + border
 
+                    # Pixel adjustments (tweak aspect ratio to make it work)
                     todo = rowwidths[r] - rw
                     ind = rows[r][0]
                     lastind = rows[r][-1]
@@ -290,6 +291,8 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
         log(LogLevels.DEBUG, "layoutImages: rowwidth=%d\n" % rowwidth)
 
+
+        # Collect candidates for the next row
         while w < rowwidth and curimg < nimgs:
         
             # Is the next image loaded? If not, get it, removing broken images on the way
@@ -309,7 +312,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                     
                     log(LogLevels.DEBUG, "(%dx%d)\n" % (imgs[curimg].size[0], imgs[curimg].size[1]))
 
-                    # Was this image loaded? If not, load it to test integrity
+                    # Was this image loaded by preresize? If not, load it to test integrity
                     if factor == 1:
                         imgs[curimg].load()
                   
@@ -323,7 +326,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
             
             im = imgs[curimg]
             
-            # Scale factor to thumbnail size
+            # Scale factor to thumbnail size, make sure it's not wider than the full width
             factor = thimgsize / float(im.size[1])
             if im.size[0] * factor > rowwidth:
                 factor = rowwidth / float(im.size[0])
@@ -342,11 +345,12 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         if w == 0:
             raise UserWarning("layoutImages: layout width = 0!\n") 
 
+        # Adjust candidate sizes to exactly fit row
         factor = (rowwidth - (len(row) + 1) * border) / float(w)
         
         log(LogLevels.DEBUG, "layoutImages: pre-adjust finish row. width=%d factor=%f height=%d h=%d tsizes=%s\n"% (w, factor, tsizes[rowfirstimg][1], h, tsizes[rowfirstimg:]))
        
-        # Too wide? Remove last one.
+        # Too wide? Remove last image.
         if factor < 0.75 and len(row) > 1:
             curimg -= 1
             w -= tsizes[curimg][0]
@@ -367,13 +371,14 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
         # Second round of adjustments for pixel-accurate results (messes with aspect ratio a little bit)
         todo = rowwidth - rw
-        ind = rowfirstimg
-        while todo:
-            tsizes[ind] = (tsizes[ind][0] + 1, tsizes[ind][1])
-            todo = todo - 1
-            ind = ind + 1
-            if ind >= curimg:
-                ind = rowfirstimg
+        if todo < rowwidth * 0.1: # Too much change? Skip it
+            ind = rowfirstimg
+            while todo:
+                tsizes[ind] = (tsizes[ind][0] + 1, tsizes[ind][1])
+                todo = todo - 1
+                ind = ind + 1
+                if ind >= curimg:
+                    ind = rowfirstimg
 
         rw = rowwidth
 
@@ -399,9 +404,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         rowwidths = rowwidths[:-1]
     
     log(LogLevels.DEBUG, "layoutImages: rows: %s rowwidths: %s\n" % (rows, rowwidths))
-       
-    # Remove broken images
-
+   
     # Step 3: Assemble images
     if forceFullSize == False:
         height = h
@@ -450,9 +453,9 @@ if __name__ == "__main__":
     parser.add_option("-l", "--loglevel",       dest="loglevel",    default=LogLevels.PROGRESS, type="int", help="log level (1-5)")
     parser.add_option("-o", "--output",         dest="output",      default="auto",         help="output filename, or auto")
     parser.add_option(      "--quality",        dest="quality",     default=85,             type="int", help="output JPEG quality")
-    parser.add_option(      "--thumbheight",    dest="thumbheight", default=150,            type="int", help="height of thumbnails")
-    parser.add_option(      "--width",          dest="width",       default=1400,           type="int", help="width of contact sheet")
-    parser.add_option(      "--height",         dest="height",      default=1100,           type="int", help="height of contact sheet (-1: auto-detect)")
+    parser.add_option(      "--thumbheight",    dest="thumbheight", default=200,            type="int", help="height of thumbnails")
+    parser.add_option(      "--width",          dest="width",       default=900,            type="int", help="width of contact sheet")
+    parser.add_option(      "--height",         dest="height",      default=-1,             type="int", help="height of contact sheet (-1: auto-detect)")
     parser.add_option("-b", "--background",     dest="background",  default="#000000",      help="background color")
     parser.add_option(      "--filetype",       dest="filetype",    default=".*\.(jpg|jpeg|JPG|JPEG)$",        help="regex expression to pick files to use")
     parser.add_option("-t", "--title",          dest="title",       default=None,           help="title to add to top of sheet")
@@ -460,6 +463,7 @@ if __name__ == "__main__":
     parser.add_option(      "--titlecolor",     dest="titlecolor",  default="#ffffff",      help="color of title text")
     parser.add_option(      "--border",         dest="border",      default="0",            type="int", help="width of border around thumbnails")
     parser.add_option("-c", "--cover",          dest="cover",       default=None,           help="cover image filename regex, picked from images, auto for default")
+    parser.add_option(      "--coverscale",     dest="coverscale",  default=3.0,            type="float", help="scale factor for cover size")
     parser.add_option(      "--font",           dest="font",        default="FreeSans.ttf", help="font file to use for title")
     parser.add_option(      "--fontsize",       dest="fontsize",    default=24,             type="int", help="size of title text")
     parser.add_option(      "--random",         dest="random",      default=False,          action="store_true", help="randomize order of images")
@@ -510,7 +514,7 @@ if __name__ == "__main__":
 
             cov = options.cover
             if options.cover == "auto":
-                cov = ".*(cover|index).*"
+                cov = "^.*(cover(?!-clean)|index).*"
 
             covre = re.compile(cov)
 
@@ -534,9 +538,9 @@ if __name__ == "__main__":
             # Load and scale cover image
             cover = Image.open(cands[0])
 
-            factor = options.thumbheight * 3 / float(cover.size[1]) 
-            if cover.size[0] * factor > options.thumbheight * 3 :
-                factor = options.thumbheight * 3 / float(cover.size[0])
+            factor = options.thumbheight * options.coverscale / float(cover.size[1])
+            if cover.size[0] * factor > options.thumbheight * options.coverscale:
+                factor = options.thumbheight * options.coverscale / float(cover.size[0])
 
             cover = resize(cover, (int(cover.size[0] * factor), int(cover.size[1] * factor)), center=False)        
         else:
