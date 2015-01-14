@@ -158,8 +158,6 @@ def resize(img, box, fit = False, center = True, left = False, out = None, backg
 # NOTE: imgs is changed! broken imges are removed and filenames may be replaced by actual images!
 
 def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None):
-
-    ##theCI.stat_nthumbs_created += 1
     
     if len(imgs) == 0:
         raise UserWarning("layoutImages: got no images to layout?!?\n")
@@ -182,9 +180,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                     # Was this image loaded? If not, load it to test integrity
                     if factor == 1:
                         imgs[i].load()
-                    
-                    ##theCI.stat_nimages_loaded += 1
-                    ##theCI.stat_npixels_loaded += imgs[i].size[0]*imgs[i].size[1]
+
                 except IOError:
                     del imgs[i]
                     continue
@@ -252,9 +248,11 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                 th = h - topoffset - 2 * border
                 log(LogLevels.DEBUG, "cs=%s tw=%d th=%d topoffset=%d\n" % (cs, tw, th, topoffset))
                 
-                cfactor = float(tw + cs[0])/(cs[0] + float(cs[1]) / th * tw  ) 
+                cfactor = float(tw + cs[0])/(cs[0] + float(cs[1]) / th * tw)
                 tfactor = cfactor * float(cs[1]) / th
-                
+
+                h = topoffset + border
+
                 for r in xrange(0, len(rows)):
                     rowwidths[r] = int(rowwidths[r] * tfactor)
                     rw = 0
@@ -264,23 +262,25 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                         rw += tsizes[i][0] + border
                         log(LogLevels.DEBUG, "ts[%d]=%s\n" % (i, tsizes[i]))
 
+                    h += tsizes[rows[r][0]][1] + border
+
                     todo = rowwidths[r] - rw
                     ind = rows[r][0]
+                    lastind = rows[r][-1]
                     while todo:
                         tsizes[ind] = (tsizes[ind][0] + 1, tsizes[ind][1])
+                        log(LogLevels.DEBUG, "ts[%d] bumped to %s\n" % (ind, tsizes[ind]))
                         todo = todo - 1
                         ind = ind + 1
-                        if ind >= curimg:
-                            ind = rowfirstimg
+                        if ind > lastind:
+                            ind = rows[r][0]
 
                     log(LogLevels.DEBUG, "rw=%d\n" % rowwidths[r])
  
-                # Adjust to new thumbs' height
-                h = int(h * tfactor)
                 log(LogLevels.DEBUG, "h=%f tfactor=%f\n" % (h,tfactor))
                
                 # Make cover fit tight
-                cb = (width - rowwidths[0] - border, h - topoffset - 2 * border)
+                cb = (width - rowwidths[0] - border * 2, h - topoffset - 2 * border)
                 
                 log(LogLevels.DEBUG, "cfactor=%f cs=%s cb=%s\n" % (cfactor, cs,cb))
                 cover = resize(cover, cb, center=False)  
@@ -313,8 +313,6 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                     if factor == 1:
                         imgs[curimg].load()
                   
-                    ##theCI.stat_nimages_loaded += 1
-                    ##theCI.stat_npixels_loaded += imgs[curimg].size[0]*imgs[curimg].size[1]
                     break
                 except Exception:
                     del imgs[curimg]
@@ -421,7 +419,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         r = rows[i]
         rw = rowwidths[i]
         if cover and y < cover.size[1]:
-            x = (width-rw) + border
+            x = (width-rw)
         else:
             x = int((width-rw) / 2.) + border
         for i in r:
@@ -430,7 +428,6 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
             out.paste(ri, (x, y))
             x += tsizes[i][0] + border   
             log(LogLevels.PROGRESS, ".")
-            ##theCI.stat_nthumbs_used += 1
             
         y += tsizes[i][1] + border
        
