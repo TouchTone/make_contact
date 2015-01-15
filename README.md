@@ -1,5 +1,7 @@
 # make_contact
 
+This was found on the web at http://pastebin.com/UYzmT5X9, and assumed to be Open Source. I fixed some problems and added some features, main credit to the original uploader.
+
 ## Instructions on how to use the make_contact.py script
 
 make_contact.py tries to make a nice-looking contact sheet for a folder full of

@@ -146,6 +146,51 @@ def resize(img, box, fit = False, center = True, left = False, out = None, backg
     return img
 
 
+# Helper routine for layout. Lay out a list of images to fit a given width and (optional) height
+
+def layoutRow(pics, width, height = -1, border = 0, thimgsize = 150):
+    # How wide can it be?
+    effw = width - border * (len(pics) + 1)
+
+    scales = []
+    factor = 0
+
+    # How wide is the row if all pics are scaled to thimgsize height?
+    iw = 0
+    for p in pics:
+        factor = thimgsize / float(p.size[1])
+        if p.size[0] * factor > width:
+            factor = width / float(p.size[0])
+
+        scales.append(factor)
+        iw += int(factor * p.size[0])
+
+    # Adjust scale factor to match width
+    factor = math.floor(effw / float(iw))
+    th = int(thimgsize * factor)
+
+    # Calculate sizes based on factor
+    tsizes = []
+    iw = 0
+    for i,p in enumerate(pics):
+        ts = (int((p.size[0]) * scales[i] * factor), th)
+        iw += ts[0]
+        tsizes.append(ts)
+
+    # Adjustment pixel sizes to match width exactly
+    todo = effw - iw
+    ind = 0
+    while todo > 0:
+        tsizes[ind] = (tsizes[ind][0] + 1, tsizes[ind][1])
+        todo = todo - 1
+        ind = ind + 1
+        if ind >= len(pics):
+            ind = 0
+
+    # Return results
+    return tsizes, factor
+
+
 # Create a thumbnail page of size width x height using as many images from imgs as possible while keeping their height at least at 75% 
 # and at most 125% of thimgsize
 # forceFullSize: create a layout of exactly the given size, otherwise it could be smaller
@@ -214,13 +259,61 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
     
     # Step 1: Fill rows of images until height is reached or images are exhausted
     rows = []
+    rowfactors = []
     rowwidths = []
-    tsizes = [] # Target sizes for images
+
     h = topoffset + border
 
+    # New implementation
+
+    curimg = 0
+
+    while (h < height or height == -1) and curimg < nimgs:
+        # Current row
+        row = []
+        factor = 1000
+        # Keep adding pictures until factor gets close to 1
+        while factor > 1.25:
+            # Is the next image loaded? If not, get it, removing broken images on the way
+            # This is more effective than loading all images if only a subset is used
+            while curimg < nimgs and not isinstance(imgs[curimg], Image.Image):
+                try:
+
+                    log(LogLevels.DEBUG, "layoutImages: loading (%d) %s " % (curimg, imgs[curimg]))
+                    log(LogLevels.PROGRESS, ".")
+
+                    imgs[curimg] = Image.open(imgs[curimg])
+
+                    maxw = max(maxw, imgs[curimg].size[0])
+                    maxh = max(maxh, imgs[curimg].size[1])
+
+                    imgs[curimg], factor = preresize(imgs[curimg], (thimgsize, thimgsize))
+
+                    log(LogLevels.DEBUG, "(%dx%d)\n" % (imgs[curimg].size[0], imgs[curimg].size[1]))
+
+                    # Was this image loaded by preresize? If not, load it to test integrity
+                    if factor == 1:
+                        imgs[curimg].load()
+
+                    break
+                except Exception:
+                    del imgs[curimg]
+                    nimgs -= 1
+
+            row.append(imgs[curimg])
+            curimg += 1
+
+            ts, factor = layoutRow(row, width, border=border, thimgsize=thimgsize)
+
+        rows.append(row)
+        rowfactors.append(factor)
+
+
+    # Old implementation...
     curimg = 0
     rowfirstimg = 0
-    
+    tsizes = [] # Target sizes for images
+
     log(LogLevels.PROGRESS, "Reading and layouting images: ")
     
     coverset = not cover
