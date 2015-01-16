@@ -5,7 +5,7 @@
 # This is copy-n-pasted from another system, so apologies for it being a little messy...
 
 
-import os, sys, glob, re, math, random, fnmatch
+import os, sys, glob, re, math, random, fnmatch, copy
 from PIL import Image, ImageDraw, ImageFont
 from optparse import OptionParser
 
@@ -153,20 +153,19 @@ def layoutRow(pics, width, height = -1, border = 0, thimgsize = 150):
     effw = width - border * (len(pics) + 1)
 
     scales = []
-    factor = 0
 
     # How wide is the row if all pics are scaled to thimgsize height?
     iw = 0
     for p in pics:
-        factor = thimgsize / float(p.size[1])
-        if p.size[0] * factor > width:
-            factor = width / float(p.size[0])
+        pf = thimgsize / float(p.size[1])
+        if p.size[0] * pf > width:
+            pf = width / float(p.size[0])
 
-        scales.append(factor)
-        iw += int(factor * p.size[0])
+        scales.append(pf)
+        iw += int(pf * p.size[0])
 
     # Adjust scale factor to match width
-    factor = math.floor(effw / float(iw))
+    factor = effw / float(iw)
     th = int(thimgsize * factor)
 
     # Calculate sizes based on factor
@@ -180,15 +179,23 @@ def layoutRow(pics, width, height = -1, border = 0, thimgsize = 150):
     # Adjustment pixel sizes to match width exactly
     todo = effw - iw
     ind = 0
-    while todo > 0:
-        tsizes[ind] = (tsizes[ind][0] + 1, tsizes[ind][1])
-        todo = todo - 1
-        ind = ind + 1
-        if ind >= len(pics):
-            ind = 0
+    if todo > 0:
+        while todo > 0:
+            tsizes[ind] = (tsizes[ind][0] + 1, tsizes[ind][1])
+            todo = todo - 1
+            ind = ind + 1
+            if ind >= len(pics):
+                ind = 0
+    else:
+        while todo < 0:
+            tsizes[ind] = (tsizes[ind][0] - 1, tsizes[ind][1])
+            todo = todo + 1
+            ind = ind + 1
+            if ind >= len(pics):
+                ind = 0
 
     # Return results
-    return tsizes, factor
+    return tsizes, th, factor, effw - iw
 
 
 # Create a thumbnail page of size width x height using as many images from imgs as possible while keeping their height at least at 75% 
@@ -261,19 +268,34 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
     rows = []
     rowfactors = []
     rowwidths = []
+    rowheights = []
+    tsizes = []
+
+    cover = None ###
 
     h = topoffset + border
-
-    # New implementation
 
     curimg = 0
 
     while (h < height or height == -1) and curimg < nimgs:
         # Current row
+        lastrow = None
+        lastts = None
+        lastfactor = 0
+        lastrh = 0
+
         row = []
+        ts = []
+        rh = 0
         factor = 1000
-        # Keep adding pictures until factor gets close to 1
-        while factor > 1.25:
+
+        # Keep adding pictures until factor gets under 1, then pick closer one
+        while factor > 1 and curimg < nimgs:
+            lastrow = copy.copy(row)
+            lastfactor = factor
+            lastts = copy.copy(ts)
+            lastrh = rh
+
             # Is the next image loaded? If not, get it, removing broken images on the way
             # This is more effective than loading all images if only a subset is used
             while curimg < nimgs and not isinstance(imgs[curimg], Image.Image):
@@ -287,12 +309,12 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                     maxw = max(maxw, imgs[curimg].size[0])
                     maxh = max(maxh, imgs[curimg].size[1])
 
-                    imgs[curimg], factor = preresize(imgs[curimg], (thimgsize, thimgsize))
+                    imgs[curimg], ifac = preresize(imgs[curimg], (thimgsize, thimgsize))
 
                     log(LogLevels.DEBUG, "(%dx%d)\n" % (imgs[curimg].size[0], imgs[curimg].size[1]))
 
                     # Was this image loaded by preresize? If not, load it to test integrity
-                    if factor == 1:
+                    if ifac == 1:
                         imgs[curimg].load()
 
                     break
@@ -303,10 +325,90 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
             row.append(imgs[curimg])
             curimg += 1
 
-            ts, factor = layoutRow(row, width, border=border, thimgsize=thimgsize)
+            ts, rh, factor, leftover = layoutRow(row, width, border=border, thimgsize=thimgsize)
 
-        rows.append(row)
-        rowfactors.append(factor)
+        if abs(factor - 1) < abs(lastfactor - 1):
+            tsizes.append(ts)
+            rows.append(row)
+            rowfactors.append(factor)
+        else:
+            tsizes.append(lastts)
+            rows.append(lastrow)
+            rowfactors.append(lastfactor)
+            rh = lastrh
+            curimg -= 1
+
+        rowwidths.append(width)
+        rowheights.append(rh)
+
+        h += rh + border
+
+    # Do we need to adjust last row? Can happen if only a few images in it.
+    if rowfactors[-1] > 1.25:
+        # Try to borrow an image from second to last row
+        slr = rows[-2][:-1]
+        lr = rows[-2][-1:] + rows[-1]
+
+        sts, srh, sfactor, sleftover = layoutRow(slr, rowwidths[-2], border=border, thimgsize=thimgsize)
+        lts, lrh, lfactor, lleftover = layoutRow(lr, rowwidths[-1], border=border, thimgsize=thimgsize)
+
+        if sfactor + lfactor < rowfactors[-2] + rowfactors[-1]:
+            rows[-2:]       = [slr, lr]
+            rowfactors[-2:] = [sfactor, lfactor]
+            tsizes[-2:]     = [sts, lts]
+
+            h = h - rowheights[-2] - rowheights[-1] + srh + lrh
+
+
+    log(LogLevels.PROGRESS, "\nAssembling result: ")
+
+    if height == -1:
+        height = h
+
+    if h > height:
+    # Remove last row, don't want partial images
+        log(LogLevels.DEBUG, "layoutImages: height %d too big, removing last row.\n" % (h))
+        h -= tsizes[-1][0][1] + border
+        rows = rows[:-1]
+        rowwidths = rowwidths[:-1]
+        rowfactors = rowfactors[:-1]
+        tsizes = tsizes[:-1]
+
+    log(LogLevels.DEBUG, "layoutImages: rows: %s rowwidths: %s\n" % (rows, rowwidths))
+
+    # Step 3: Assemble images
+    if forceFullSize == False:
+        height = h
+        width = max(rowwidths)
+
+    out = Image.new("RGB", (width, height), background)
+    y = int(math.floor((height - h) / 2)) + topoffset + border
+
+    if cover:
+        out.paste(cover, (border, y))
+
+    for i in xrange(0, len(rows)):
+        r = rows[i]
+        rw = rowwidths[i]
+        if cover and y < cover.size[1]:
+            x = (width-rw)
+        else:
+            x = int((width-rw) / 2.) + border
+
+        for ii,im in enumerate(r):
+            t = tsizes[i][ii]
+            log(LogLevels.DEBUG, "Out %d (%d,%d) rescaled to %dx%d at %d,%d\n" % (i, im.size[0], im.size[1], t[0] - 2 * border, t[1] - 2 * border, x, y))
+            ri = resize(im, (t[0], t[1]), center=False)
+            out.paste(ri, (x, y))
+            x += t[0] + border
+            log(LogLevels.PROGRESS, ".")
+
+        y += tsizes[i][0][1] + border
+
+    log(LogLevels.PROGRESS, "\n")
+
+    return out, maxw, maxh
+
 
 
     # Old implementation...
