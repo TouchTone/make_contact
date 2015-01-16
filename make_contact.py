@@ -271,13 +271,63 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
     rowheights = []
     tsizes = []
 
-    cover = None ###
+    coverset = not cover
 
     h = topoffset + border
 
     curimg = 0
 
     while (h < height or height == -1) and curimg < nimgs:
+
+        # Try to keep space for cover, if any
+        rowwidth = width
+        if not coverset:
+            cs = cover.size
+
+            if h < cs[1]:
+
+                rowwidth = width - cs[0] - border
+
+            else:
+                # Adjust height of rows next to cover and cover to match
+                tw = width - cs[0] - border
+                th = h - topoffset - 2 * border
+                log(LogLevels.DEBUG, "cs=%s tw=%d th=%d topoffset=%d\n" % (cs, tw, th, topoffset))
+
+                cfactor = float(tw + cs[0])/(cs[0] + float(cs[1]) / th * tw)
+                tfactor = cfactor * float(cs[1]) / th
+
+                # New layout for cover-side rows. Start from the top.
+                h = topoffset + border
+
+                nrw = int(rowwidths[0] * tfactor)
+
+                for ri, row in enumerate(rows):
+                    ts, rh, factor, leftover = layoutRow(row, nrw, border=border, thimgsize=thimgsize)
+
+                    tsizes[ri] = ts
+                    rowfactors[ri] = factor
+                    rowwidths[ri] = nrw
+                    rowheights[ri] = rh
+
+                    h += rh + border
+
+                    log(LogLevels.DEBUG, "rw=%d\n" % rowwidths[ri])
+
+                log(LogLevels.DEBUG, "h=%f tfactor=%f\n" % (h,tfactor))
+
+                # Make cover fit tight
+                cb = (width - rowwidths[0] - border * 2, h - topoffset - 2 * border)
+
+                log(LogLevels.DEBUG, "cfactor=%f cs=%s cb=%s\n" % (cfactor, cs,cb))
+                cover = resize(cover, cb, center=False)
+                log(LogLevels.DEBUG, "cover.size=(%d,%d)\n" % (cover.size))
+
+                coverset = True
+
+
+        log(LogLevels.DEBUG, "layoutImages: rowwidth=%d\n" % rowwidth)
+
         # Current row
         lastrow = None
         lastts = None
@@ -325,7 +375,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
             row.append(imgs[curimg])
             curimg += 1
 
-            ts, rh, factor, leftover = layoutRow(row, width, border=border, thimgsize=thimgsize)
+            ts, rh, factor, leftover = layoutRow(row, rowwidth, border=border, thimgsize=thimgsize)
 
         if abs(factor - 1) < abs(lastfactor - 1):
             tsizes.append(ts)
@@ -338,7 +388,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
             rh = lastrh
             curimg -= 1
 
-        rowwidths.append(width)
+        rowwidths.append(rowwidth)
         rowheights.append(rh)
 
         h += rh + border
