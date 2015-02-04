@@ -703,20 +703,26 @@ if __name__ == "__main__":
     parser.add_option(      "--height",         dest="height",      default=-1,             type="int", help="height of contact sheet (-1: auto-detect)")
     parser.add_option("-b", "--background",     dest="background",  default="#000000",      help="background color")
     parser.add_option(      "--filetype",       dest="filetype",    default=".*\.(jpg|jpeg|JPG|JPEG)$",        help="regex expression to pick files to use")
-    parser.add_option("-t", "--title",          dest="title",       default=None,           help="title to add to top of sheet")
+    parser.add_option("-t", "--title",          dest="title",       default="auto",         help="title to add to top of sheet")
     parser.add_option(      "--tstats",         dest="tstats",      default=False,          action="store_true", help="add statistics after title")
     parser.add_option(      "--titlecolor",     dest="titlecolor",  default="#ffffff",      help="color of title text")
     parser.add_option(      "--border",         dest="border",      default="0",            type="int", help="width of border around thumbnails")
-    parser.add_option("-c", "--cover",          dest="cover",       default=None,           help="cover image filename regex, picked from images, auto for default")
+    parser.add_option("-c", "--cover",          dest="cover",       default="none",         help="cover image filename regex, picked from images, auto for default")
     parser.add_option(      "--coverscale",     dest="coverscale",  default=3.0,            type="float", help="scale factor for cover size")
     parser.add_option(      "--font",           dest="font",        default="FreeSans.ttf", help="font file to use for title")
     parser.add_option(      "--fontsize",       dest="fontsize",    default=24,             type="int", help="size of title text")
     parser.add_option(      "--random",         dest="random",      default=False,          action="store_true", help="randomize order of images")
     parser.add_option("-r", "--recursive",      dest="recursive",   default=False,          action="store_true", help="recursive collect images from subfolders")
+    parser.add_option(      "--no-overwrite",   dest="nooverwrite", default=False,          action="store_true", help="don't overwrite existing contact sheets")
 
     (options, args) = parser.parse_args()
 
     logLevel = options.loglevel
+    
+    if len(args) == 0:
+        parser.print_help()
+        sys.exit(1)
+        
     
     for folder in args:
     
@@ -728,7 +734,18 @@ if __name__ == "__main__":
             continue
 
         fre = re.compile(options.filetype)            
-        
+ 
+        outname = options.output
+        if outname == "auto":
+            if folder[-1] == os.path.sep:
+                outname = folder[:-1] + ".jpg"
+            else:
+                outname = folder + ".jpg"
+
+        if options.nooverwrite and os.path.isfile(outname):
+            log(LogLevels.INFO, "%s already exists, not overwriting.\n" % outname)
+            continue           
+       
         if not options.recursive:
         
             files = os.listdir(folder)
@@ -755,7 +772,7 @@ if __name__ == "__main__":
 
         log(LogLevels.INFO, "Found %d images to process for folder %s...\n" % (len(files), folder))
 
-        if options.cover:
+        if options.cover != "none":
 
             cov = options.cover
             if options.cover == "auto":
@@ -792,8 +809,8 @@ if __name__ == "__main__":
             cover = None            
 
 
-        if options.title == None:
-            output, maxw, maxh = layoutImages(options.width, options.height, files, cover=cover, thimgsize = options.thumbheight, background = options.background, border = options.border, forceFullSize = False)
+        if options.title == "none":
+            sheet, maxw, maxh = layoutImages(options.width, options.height, files, cover=cover, thimgsize = options.thumbheight, background = options.background, border = options.border, forceFullSize = False)
         else:
 
             if not os.path.isfile(options.font):
@@ -804,9 +821,9 @@ if __name__ == "__main__":
 
             fh += 2 # Add a little border
 
-            output, maxw, maxh = layoutImages(options.width, options.height, files, cover=cover, thimgsize = options.thumbheight, background = options.background, topoffset = fh, border = options.border, forceFullSize = False)
+            sheet, maxw, maxh = layoutImages(options.width, options.height, files, cover=cover, thimgsize = options.thumbheight, background = options.background, topoffset = fh, border = options.border, forceFullSize = False)
 
-            draw = ImageDraw.Draw(output)  
+            draw = ImageDraw.Draw(sheet)  
 
             t = options.title
             if t == "auto":
@@ -831,13 +848,7 @@ if __name__ == "__main__":
 
             draw.text(( (options.width - fw) / 2,0), t, font=font, fill=options.titlecolor)    
 
-        out = options.output
-        if out == "auto":
-            if folder[-1] == os.path.sep:
-                out = folder[:-1] + ".jpg"
-            else:
-                out = folder + ".jpg"
 
-        log(LogLevels.PROGRESS, "Writing contact sheet to %s.\n" % out)
-        output.save(out, "JPEG", quality=options.quality)
+        log(LogLevels.PROGRESS, "Writing contact sheet to %s.\n" % outname)
+        sheet.save(outname, "JPEG", quality=options.quality)
 
