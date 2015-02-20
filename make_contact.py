@@ -673,7 +673,7 @@ if __name__ == "__main__":
     if options['gui']:
         
         import make_contact_gui
-        
+       
         make_contact_gui.run(options, args)
         
         sys.exit(0)
@@ -686,4 +686,3 @@ if __name__ == "__main__":
     
     for folder in args:
         createContactSheet(options, folder)
-

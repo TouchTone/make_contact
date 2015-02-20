@@ -11,6 +11,26 @@ https://github.com/TouchTone/make_contact/releases, put it in the folder where
 you want to install it and execute the program there (or extract it using 7z to the place
 you want it to go to).
 
+To use it just drop the folder you want to create the contact sheet for onto
+the make_contact.bat script. You can do this with multiple folders, they will be
+created one after the other.
+
+If you want to customize the options (like contact sheet sizes etc.), edit the
+make_contact.bat file, it has a set of variables at the top that should be
+fairly self-explanatory after reading the rest of this document. If not, just
+open a ticket here and ask.
+
+You can also register the program as a shell extension. To do that run the
+register.bat script. Once that is done you can right-click on a folder and use
+the Contact Sheet option.
+
+## Instruction for Windows users
+
+Download the latest relese from
+https://github.com/TouchTone/make_contact/releases, put it in the folder where
+you want to install it and execute the program there (or extract it using 7z to the place
+you want it to go to).
+
 It has a GUI now, just run the make_contact_gui.bat batch file to start it. Set your desired 
 options, select/drag'n'drop the folders, press Run and enjoy.
 
