@@ -7,7 +7,7 @@ a = Analysis(['make_contact.py'],
              hookspath=None,
              runtime_hooks=None)
 
-for i in ["FreeSans.ttf", "make_contact.bat", "register.bat"]:
+for i in ["FreeSans.ttf", "make_contact.bat", "make_contact_gui.bat", "register.bat"]:
     a.datas.append( (i, i, 'DATA') )
 
 pyz = PYZ(a.pure)

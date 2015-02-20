@@ -11,7 +11,10 @@ https://github.com/TouchTone/make_contact/releases, put it in the folder where
 you want to install it and execute the program there (or extract it using 7z to the place
 you want it to go to).
 
-To use it just drop the folder you want to create the contact sheet for onto
+It has a GUI now, just run the make_contact_gui.bat batch file to start it. Set your desired 
+options, select/drag'n'drop the folders, press Run and enjoy.
+
+To use it without GUI just drop the folder(s) you want to create the contact sheet for onto
 the make_contact.bat script. You can do this with multiple folders, they will be
 created one after the other.
 
@@ -22,10 +25,12 @@ open a ticket here and ask.
 
 You can also register the program as a shell extension. To do that run the
 register.bat script. Once that is done you can right-click on a folder and use
-the Contact Sheet option.
+the Contact Sheet option. If you do that with multiple folders it will start a separate 
+instance of the program for each, eating up a lot of memory. If you want to do multiple
+folders drag them onto the make_contact.bat or use the GUI.
 
 
-## Instructions on how to use the make_contact.py script
+## Instructions on how to use the make_contact.py script directly
 
 make_contact.py tries to make a nice-looking contact sheet for a folder full of
 images. To do that it loads all of them and arranges them in scaled down
