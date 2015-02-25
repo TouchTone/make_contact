@@ -322,7 +322,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                 log(LogLevels.DEBUG, "h=%f tfactor=%f\n" % (h,tfactor))
 
                 # Make cover fit tight
-                cb = (width - rowwidths[0] - border * 2, h - topoffset - 2 * border)
+                cb = (width - rowwidths[0] - border, h - topoffset - 2 * border)
 
                 log(LogLevels.DEBUG, "cfactor=%f cs=%s cb=%s\n" % (cfactor, cs,cb))
                 cover = resize(cover, cb, center=False)
@@ -453,7 +453,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         r = rows[i]
         rw = rowwidths[i]
         if cover and y < cover.size[1]:
-            x = (width-rw)
+            x = (width-rw) + border
         else:
             x = int((width-rw) / 2.) + border
 
