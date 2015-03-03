@@ -5,7 +5,7 @@
 # This is copy-n-pasted from another system, so apologies for it being a little messy...
 
 
-import os, sys, glob, re, math, random, fnmatch, copy, json
+import os, sys, glob, re, math, random, fnmatch, copy, json, time
 from PIL import Image, ImageDraw, ImageFont
 from optparse import OptionParser
 
@@ -29,11 +29,18 @@ LogLevels = enum("FATAL", "ERROR", "WARNING", "INFO", "PROGRESS", "DEBUG")
 
 logLevel = LogLevels.INFO
 errorlog = None
+logpipe = None
+
 
 def log(level, msg):
     if logLevel >= LogLevels.DEBUG and level == LogLevels.PROGRESS:
         # Don't let progress mess up debug log
         return
+
+    if not logpipe is None:
+        logpipe(level, msg)
+        return
+
     if level <= logLevel:
         sys.stderr.write(msg)
         sys.stderr.flush()
@@ -65,6 +72,12 @@ def resize(img, box, fit = False, center = True, left = False, out = None, backg
    @param out: file-like-object - save the image into the output stream
    @param center: boolean - center the image in the box
    '''
+
+    try:
+        fn = img.filename
+    except IndexError:
+        fn = None
+
     #preresize image with factor 2, 4, 8 and fast algorithm
     #Don't go down as far as possible, leave some pixels for anitaliasing 
     preresize(img, box)
@@ -142,7 +155,10 @@ def resize(img, box, fit = False, center = True, left = False, out = None, backg
     if out != None:
         #save it into a file-like object
         img.save(out, "JPEG", quality=75)
-    
+
+    if not fn is None:
+        setattr(img, "filename", fn)
+
     return img
 
 
@@ -198,6 +214,37 @@ def layoutRow(pics, width, height = -1, border = 0, thimgsize = 150):
     return tsizes, th, factor, effw - iw
 
 
+labelfont = None
+labelfontheight = 0
+
+def drawLabel(im, draw, text, pos, size, options):
+    global labelfont, labelfontheight
+
+    if labelfont is None:
+        if not os.path.isfile(options['font']):
+            options['font'] = os.path.join(basedir, options['font'])
+
+        labelfont = ImageFont.truetype(options['font'], options['labelsize'])
+
+        # This is broken in older pillow versions, using fix from https://github.com/python-pillow/Pillow/commit/60628c77b356d0617932887453c3783307aa682a
+        ##(fw,fh) = font.getsize(text)
+        fsize, foffset = labelfont.font.getsize(text)
+        (fw, fh) = (fsize[0] + foffset[0], fsize[1] + foffset[1])
+        # Still not working right, do some tweaking
+        labelfontheight = labelfont.font.ascent + labelfont.font.descent
+
+    (ts, dum) = labelfont.font.getsize(text)
+
+    x = (size[0] - ts[0]) / 2 + pos[0]
+    y = pos[1] + size[1] - labelfontheight
+
+    draw.rectangle(((x-2, y-2),(x + ts[0] + 4, y + ts[1] + 2)), fill=(0,0,0,64))
+    draw.text((x,y), text, font=labelfont, fill=options['labelcolor'])
+
+
+
+
+
 # Create a thumbnail page of size width x height using as many images from imgs as possible while keeping their height at least at 75% 
 # and at most 125% of thimgsize
 # forceFullSize: create a layout of exactly the given size, otherwise it could be smaller
@@ -209,16 +256,18 @@ def layoutRow(pics, width, height = -1, border = 0, thimgsize = 150):
 # if height == -1 determine it automatically
 # NOTE: imgs is changed! broken imges are removed and filenames may be replaced by actual images!
 
-def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None, progress = None):
+def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None, loptions = None, labels = False, progress = None):
     
     if len(imgs) == 0:
         raise UserWarning("layoutImages: got no images to layout?!?\n")
     
     log(LogLevels.DEBUG, "layoutImages: width:%d height:%d\n" % (width, height))
     log(LogLevels.DEBUG, "layoutImages: imgs:%s\n" % (imgs))
-    
+
+    start = time.time()
+
     maxw = maxh = -1
-    
+
     # Special case: 1x1 thumbnail
     if width == thimgsize and height == thimgsize:
         i = 0
@@ -403,7 +452,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         h += rh + border
 
     # Do we need to adjust last row? Can happen if only a few images in it.
-    if rowfactors[-1] > 1.25:
+    if rowfactors[-1] > 1.25 and len(rows) > 2:
         # Try to borrow an image from second to last row
         slr = rows[-2][:-1]
         lr = rows[-2][-1:] + rows[-1]
@@ -442,9 +491,16 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
     out = Image.new("RGB", (width, height), background)
     y = int(math.floor((height - h) / 2)) + topoffset + border
+    draw = ImageDraw.Draw(out, "RGBA")
 
     if cover:
         out.paste(cover, (border, y))
+
+        if labels:
+            lt = cover.filename.rsplit('/', 1)[-1]
+
+            drawLabel(out, draw, lt, (border, y), cover.size, loptions)
+
         if width - cover.size[0] <= thimgsize:
             y = topoffset + 2 * border + cover.size[1]
 
@@ -462,6 +518,12 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
             log(LogLevels.DEBUG, "Out %d (%d,%d) rescaled to %dx%d at %d,%d\n" % (i, im.size[0], im.size[1], t[0] - 2 * border, t[1] - 2 * border, x, y))
             ri = resize(im, (t[0], t[1]), center=False)
             out.paste(ri, (x, y))
+
+            if labels:
+                lt = im.filename.rsplit('/', 1)[-1]
+
+                drawLabel(out, draw, lt, (x,y), (t[0], t[1]), loptions)
+
             x += t[0] + border
             log(LogLevels.PROGRESS, ".")
             ic += 1
@@ -472,7 +534,9 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
         y += tsizes[i][0][1] + border
 
-    log(LogLevels.PROGRESS, "\n")
+    end = time.time()
+
+    log(LogLevels.INFO, " done (took %.2f secs).\n" % (end-start))
 
     if progress:
             progress(1.0, 1.0)
@@ -482,36 +546,43 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
 def createContactSheet(options, folder, progress = None):
 
-    if folder[-1] == os.path.sep:
-        folder = folder[:-1]
-
-    if not os.path.isdir(folder):
-        log(LogLevels.INFO, "%s is not a folder, skipped.\n" % folder)
-        return
-
-    fre = re.compile(options['filetype'])
-
     outname = options['output']
+
     if outname == "auto":
-        if folder[-1] == os.path.sep:
-            outname = folder[:-1] + "." + options['outputtype']
+        try:
+            fbase, fname = folder.rsplit('/', 1)
+        except ValueError:
+            fbase = "."
+            fname = folder
+
+        if options['outdir'] == "auto" or options['outdir'] == '':
+            outbase = fbase
         else:
-            outname = folder + "." + options['outputtype']
+            outbase = options['outdir']
+
+        if len(outbase) > 0 and outbase[-1] == os.path.sep:
+            outbase = outbase[:-1]
+
+        outname = outbase + "/" + fname + "." + options['outputtype']
 
     if options['nooverwrite'] and os.path.isfile(outname):
         log(LogLevels.INFO, "%s already exists, not overwriting.\n" % outname)
         return
 
-    if not options['recursive']:
+    fre = re.compile(options['filetype'])
 
+    if not options['recursive']:
         files = os.listdir(folder)
         files = [ os.path.join(folder,f) for f in files if fre.match(f) ]
-
     else:
-
         files = []
         for root, dirs, dfiles in os.walk(folder):
             files += [os.path.join(root, f) for f in dfiles if fre.match(f) ]
+
+
+    if len(files) == 0:
+        log(LogLevels.ERROR, "Found no images to process for folder %s, skipping!\n" % folder)
+        return
 
     if options['random']:
         for i in xrange(0, len(files)):
@@ -522,11 +593,14 @@ def createContactSheet(options, folder, progress = None):
     else:
         files.sort()
 
-    if len(files) == 0:
-        log(LogLevels.ERROR, "Found no images to process for folder %s, skipping!\n" % folder)
-        return
 
-    log(LogLevels.INFO, "Found %d images to process for folder %s...\n" % (len(files), folder))
+    try:
+        f = folder.rsplit('/', 1)[-1]
+    except IndexError:
+        f = folder
+
+    log(LogLevels.INFO, "%s: %d images..." % (f, len(files)))
+
 
     if options['cover'] != "none":
 
@@ -542,16 +616,16 @@ def createContactSheet(options, folder, progress = None):
                 cands.append(f)
 
         if len(cands) == 0:
-            log(LogLevels.WARNING, "Found no cover candidate, using first image.\n")
+            log(LogLevels.DEBUG, "Found no cover candidate, using first image.\n")
             cands.append(files[0])
 
         elif len(cands) > 1:
-            log(LogLevels.WARNING, "Found more than 1 cover candidate (%s), using first, ignoring others.\n" % cands)
+            log(LogLevels.DEBUG, "Found more than 1 cover candidate (%s), using first, ignoring others.\n" % cands)
 
         # Remove cover(s) from files list
         files = [ f for f in files if not f in cands ]
 
-        log(LogLevels.PROGRESS, "Loading and scaling cover %s...\n" % cands[0])
+        log(LogLevels.DEBUG, "Loading and scaling cover %s...\n" % cands[0])
 
         # Load and scale cover image
         cover = Image.open(cands[0])
@@ -572,7 +646,7 @@ def createContactSheet(options, folder, progress = None):
 
 
     if options['title'] == "none":
-        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], border = options['border'], forceFullSize = False, progress=progress)
+        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress)
     else:
 
         if not os.path.isfile(options['font']):
@@ -581,7 +655,7 @@ def createContactSheet(options, folder, progress = None):
         font = ImageFont.truetype(options['font'], options['fontsize'])
 
         # This is broken in older pillow versions, using fix from https://github.com/python-pillow/Pillow/commit/60628c77b356d0617932887453c3783307aa682a
-        (fw,fh) = font.getsize(options['title'])
+        ##(fw,fh) = font.getsize(options['title'])
         size, offset = font.font.getsize(options['title'])
         (fw, fh) = (size[0] + offset[0], size[1] + offset[1])
         # Still not working right, do some tweaking
@@ -589,7 +663,7 @@ def createContactSheet(options, folder, progress = None):
 
         fh += 2 # Add a little border
 
-        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], topoffset = fh, border = options['border'], forceFullSize = False, progress=progress)
+        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], topoffset = fh, border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress)
 
         draw = ImageDraw.Draw(sheet)
 
@@ -622,6 +696,31 @@ def createContactSheet(options, folder, progress = None):
 
 
 
+def processFolder(options, folder, progress = None):
+
+    if folder[-1] == os.path.sep:
+        folder = folder[:-1]
+
+    if not os.path.isdir(folder):
+        log(LogLevels.INFO, "%s is not a folder, skipped.\n" % folder)
+        return
+
+    if options["subdircontacts"] == False:
+        createContactSheet(options, folder, progress)
+    else:
+        for r in os.walk(folder):
+
+            f = r[0]
+
+            # Any images in this folder?
+            fre = re.compile(options['filetype'])
+            files = [ ff for ff in os.listdir(f) if fre.match(ff) ]
+
+            if len(files) > 0:
+                createContactSheet(options, f, progress)
+
+
+
 if __name__ == "__main__":
 
     # Main program
@@ -633,28 +732,33 @@ if __name__ == "__main__":
 
     parser = OptionParser()
 
-    parser.add_option("-l", "--loglevel",       dest="loglevel",    default=LogLevels.PROGRESS, type="int", help="log level (1-5)")
-    parser.add_option("-o", "--output",         dest="output",      default="auto",         help="output filename, or auto")
-    parser.add_option(      "--outputtype",     dest="outputtype",  default="jpg",          help="output filetype for auto output")
-    parser.add_option(      "--quality",        dest="quality",     default=85,             type="int", help="output JPEG quality")
-    parser.add_option(      "--thumbheight",    dest="thumbheight", default=200,            type="int", help="height of thumbnails")
-    parser.add_option(      "--width",          dest="width",       default=900,            type="int", help="width of contact sheet")
-    parser.add_option(      "--height",         dest="height",      default=-1,             type="int", help="height of contact sheet (-1: auto-detect)")
-    parser.add_option("-b", "--background",     dest="background",  default="#000000",      help="background color")
-    parser.add_option(      "--filetype",       dest="filetype",    default=".*\.(jpg|jpeg|JPG|JPEG)$",        help="regex expression to pick files to use")
-    parser.add_option("-t", "--title",          dest="title",       default="auto",         help="title to add to top of sheet, auto for default, none for none")
-    parser.add_option(      "--tstats",         dest="tstats",      default=False,          action="store_true", help="add statistics after title")
-    parser.add_option(      "--titlecolor",     dest="titlecolor",  default="#ffffff",      help="color of title text")
-    parser.add_option(      "--border",         dest="border",      default="0",            type="int", help="width of border around thumbnails")
-    parser.add_option("-c", "--cover",          dest="cover",       default="none",         help="cover image filename regex, picked from images, auto for default")
-    parser.add_option(      "--coverscale",     dest="coverscale",  default=3.0,            type="float", help="scale factor for cover size")
-    parser.add_option(      "--font",           dest="font",        default="FreeSans.ttf", help="font file to use for title")
-    parser.add_option(      "--fontsize",       dest="fontsize",    default=24,             type="int", help="size of title text")
-    parser.add_option(      "--random",         dest="random",      default=False,          action="store_true", help="randomize order of images")
-    parser.add_option("-r", "--recursive",      dest="recursive",   default=False,          action="store_true", help="recursive collect images from subfolders")
-    parser.add_option(      "--no-overwrite",   dest="nooverwrite", default=False,          action="store_true", help="don't overwrite existing contact sheets")
-    parser.add_option(      "--gui",            dest="gui",         default=False,          action="store_true", help="run GUI")
-    parser.add_option(      "--options",        dest="options",     default=None,           help="load options from file, overwriting command-line options")
+    parser.add_option("-l", "--loglevel",       dest="loglevel",       default=LogLevels.PROGRESS, type="int", help="log level (1-5)")
+    parser.add_option("-o", "--output",         dest="output",         default="auto",         help="output filename, or auto")
+    parser.add_option(      "--outputtype",     dest="outputtype",     default="jpg",          help="output filetype for auto output")
+    parser.add_option(      "--outdir",         dest="outdir",         default="auto",         help="output firectory for contact sheets, or auto")
+    parser.add_option(      "--quality",        dest="quality",        default=85,             type="int", help="output JPEG quality")
+    parser.add_option(      "--thumbheight",    dest="thumbheight",    default=200,            type="int", help="height of thumbnails")
+    parser.add_option(      "--width",          dest="width",          default=900,            type="int", help="width of contact sheet")
+    parser.add_option(      "--height",         dest="height",         default=-1,             type="int", help="height of contact sheet (-1: auto-detect)")
+    parser.add_option("-b", "--background",     dest="background",     default="#000000",      help="background color")
+    parser.add_option(      "--filetype",       dest="filetype",       default=".*\.(jpg|jpeg|JPG|JPEG)$",        help="regex expression to pick files to use")
+    parser.add_option("-t", "--title",          dest="title",          default="auto",         help="title to add to top of sheet, auto for default, none for none")
+    parser.add_option(      "--tstats",         dest="tstats",         default=False,          action="store_true", help="add statistics after title")
+    parser.add_option(      "--titlecolor",     dest="titlecolor",     default="#ffffff",      help="color of title text")
+    parser.add_option(      "--border",         dest="border",         default="0",            type="int", help="width of border around thumbnails")
+    parser.add_option("-c", "--cover",          dest="cover",          default="none",         help="cover image filename regex, picked from images, auto for default")
+    parser.add_option(      "--coverscale",     dest="coverscale",     default=3.0,            type="float", help="scale factor for cover size")
+    parser.add_option(      "--font",           dest="font",           default="FreeSans.ttf", help="font file to use for title")
+    parser.add_option(      "--fontsize",       dest="fontsize",       default=24,             type="int", help="size of title text")
+    parser.add_option(      "--random",         dest="random",         default=False,          action="store_true", help="randomize order of images")
+    parser.add_option("-r", "--recursive",      dest="recursive",      default=False,          action="store_true", help="recursive collect images from subfolders")
+    parser.add_option(      "--subdircontacts", dest="subdircontacts", default=False,          action="store_true", help="recursively create contact sheets for subfolders")
+    parser.add_option(      "--no-overwrite",   dest="nooverwrite",    default=False,          action="store_true", help="don't overwrite existing contact sheets")
+    parser.add_option(      "--labels",         dest="labels",         default=False,          action="store_true", help="put labels at bottom of thumbnails")
+    parser.add_option(      "--labelsize",      dest="labelsize",      default="8",            type="int", help="font size for labels")
+    parser.add_option(      "--labelcolor",     dest="labelcolor",     default="#ffffff",      help="color for labels")
+    parser.add_option(      "--gui",            dest="gui",            default=False,          action="store_true", help="run GUI")
+    parser.add_option(      "--options",        dest="options",        default=None,           help="load options from file, overwriting command-line options")
 
     (options, args) = parser.parse_args()
 
@@ -668,8 +772,10 @@ if __name__ == "__main__":
         options = vars(options) # Turn into dict for easier load/save
 
     logLevel = options['loglevel']
- 
-     
+
+    if "-gui" in sys.argv[0]:
+        options["gui"] = True
+
     if options['gui']:
         
         import make_contact_gui
@@ -685,4 +791,4 @@ if __name__ == "__main__":
 
     
     for folder in args:
-        createContactSheet(options, folder)
+        processFolder(options, folder)

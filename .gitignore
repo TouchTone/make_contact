@@ -1,6 +1,8 @@
 dist
 build
 test
+outs
 .idea
 *.pyc
+make_contact-gui.py
 
