@@ -3,4 +3,5 @@ build
 test
 .idea
 *.pyc
-
+/make_contact-gui.py
+outs
