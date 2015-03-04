@@ -3,6 +3,7 @@
 
 import json
 import traceback
+import time
 
 from PySide.QtCore import *
 from PySide.QtGui import *
@@ -324,6 +325,8 @@ class MCWindow(QMainWindow):
         self.pd = pd
         self.abort = False
 
+        start = time.time()
+        
         for i in xrange(self.ui.dirsL.count()):
             d = self.ui.dirsL.item(i)
             ## print i,d.text(), self.options
@@ -339,8 +342,9 @@ class MCWindow(QMainWindow):
                 print traceback.format_exc()
                 break
 
+        end = time.time()
         if not self.abort:
-            pd.logT.insertPlainText("All done.")
+            pd.logT.insertPlainText("All done, took %.2f secs." % (end-start))
 
         pd.abortB.setText("Close")
         pd.abortB.clicked.connect(pdia.close)
