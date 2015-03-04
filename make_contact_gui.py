@@ -15,10 +15,6 @@ import make_contact
 import progressdialog
 
 
-class AbortException(Exception):
-    pass
-
-
 
 class MCWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
@@ -31,7 +27,7 @@ class MCWindow(QMainWindow):
         self.options = kwargs["options"]
         self.args    = kwargs["args"]
 
-        self.pdia = None
+        self.pd = None
 
         # Set up routes to my methods
 
@@ -293,25 +289,27 @@ class MCWindow(QMainWindow):
     def progress(self, layout, compose):
         #print "Progress:",layout,compose
 
-        self.pdia.layoutBar.setValue(layout * 100)
-        self.pdia.composeBar.setValue(compose * 100)
+        self.pd.layoutBar.setValue(layout * 100)
+        self.pd.composeBar.setValue(compose * 100)
 
         QCoreApplication.processEvents()
 
         return self.abort
 
+
     def abortButton(self):
+        self.pd.logT.insertPlainText("\nAborted...")
         self.abort = True
 
 
     def logpipe(self, level, msg):
-        if self.pdia is None:
+        if self.pd is None:
             return
 
         if level > make_contact.LogLevels.INFO:
             return
 
-        self.pdia.logT.insertPlainText(msg)
+        self.pd.logT.insertPlainText(msg)
 
 
     def run(self):
@@ -323,7 +321,7 @@ class MCWindow(QMainWindow):
         pd.abortB.clicked.connect(self.abortButton)
         pdia.show()
 
-        self.pdia = pd
+        self.pd = pd
         self.abort = False
 
         for i in xrange(self.ui.dirsL.count()):
@@ -335,12 +333,20 @@ class MCWindow(QMainWindow):
 
             try:
                 make_contact.processFolder(self.options, d.text(), progress=self.progress)
+            except make_contact.AbortException,e:
+                break
             except Exception,e:
                 print traceback.format_exc()
                 break
 
-        pdia.close()
-        self.pdia = None
+        if not self.abort:
+            pd.logT.insertPlainText("All done.")
+
+        pd.abortB.setText("Close")
+        pd.abortB.clicked.connect(pdia.close)
+        pdia.exec_()
+
+        self.pd = None
 
 
 

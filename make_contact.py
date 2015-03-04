@@ -10,6 +10,10 @@ from PIL import Image, ImageDraw, ImageFont
 from optparse import OptionParser
 
 
+
+class AbortException(Exception):
+    pass
+
 # Helpers
 
 def enum(*sequential, **named):
@@ -381,7 +385,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
         if progress:
             if progress(curimg / float(nimgs), 0.):
-                raise Exception()
+                raise AbortException()
 
 
         log(LogLevels.DEBUG, "layoutImages: rowwidth=%d\n" % rowwidth)
