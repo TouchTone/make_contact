@@ -3,6 +3,7 @@
 
 import json
 import traceback
+import time
 
 from PySide.QtCore import *
 from PySide.QtGui import *
@@ -13,10 +14,6 @@ import mc_main
 
 import make_contact
 import progressdialog
-
-
-class AbortException(Exception):
-    pass
 
 
 
@@ -31,7 +28,7 @@ class MCWindow(QMainWindow):
         self.options = kwargs["options"]
         self.args    = kwargs["args"]
 
-        self.pdia = None
+        self.pd = None
 
         # Set up routes to my methods
 
@@ -138,7 +135,10 @@ class MCWindow(QMainWindow):
             self.ui.thumbCoverModeC.setCurrentIndex(2)
             self.ui.thumbCoverE.setText(options['cover'])
             self.ui.thumbCoverE.setEnabled(True)
-        self.ui.thumbCoverScaleS.setValue(options['coverscale'])
+        if options['coverscale'] == 0:
+            self.ui.thumbCoverScaleS.setCurrentIndex(self.ui.thumbCoverScaleS.count() - 1)
+        else:
+            self.ui.thumbCoverScaleS.setCurrentIndex(options['coverscale'] - 1)
 
         # Title Specs
         self.ui.titleEnableC.setChecked(options['title'] != "none")
@@ -183,7 +183,10 @@ class MCWindow(QMainWindow):
             else:
                 self.options['cover'] = self.ui.thumbCoverE.text()
             var = "Cover Scale"
-            self.options['coverscale'] = int(self.ui.thumbCoverScaleS.value())
+            if self.ui.thumbCoverScaleS.currentIndex() == self.ui.thumbCoverScaleS.count() - 1:
+                self.options['coverscale'] = 0
+            else:
+                self.options['coverscale'] = int(self.ui.thumbCoverScaleS.currentIndex() + 1)
             var = "Font Size"
             self.options['fontsize'] = int(self.ui.titleSizeE.text())
             var = "Sheet Height"
@@ -293,25 +296,27 @@ class MCWindow(QMainWindow):
     def progress(self, layout, compose):
         #print "Progress:",layout,compose
 
-        self.pdia.layoutBar.setValue(layout * 100)
-        self.pdia.composeBar.setValue(compose * 100)
+        self.pd.layoutBar.setValue(layout * 100)
+        self.pd.composeBar.setValue(compose * 100)
 
         QCoreApplication.processEvents()
 
         return self.abort
 
+
     def abortButton(self):
+        self.pd.logT.insertPlainText("\nAborted...")
         self.abort = True
 
 
     def logpipe(self, level, msg):
-        if self.pdia is None:
+        if self.pd is None:
             return
 
         if level > make_contact.LogLevels.INFO:
             return
 
-        self.pdia.logT.insertPlainText(msg)
+        self.pd.logT.insertPlainText(msg)
 
 
     def run(self):
@@ -323,9 +328,11 @@ class MCWindow(QMainWindow):
         pd.abortB.clicked.connect(self.abortButton)
         pdia.show()
 
-        self.pdia = pd
+        self.pd = pd
         self.abort = False
 
+        start = time.time()
+        
         for i in xrange(self.ui.dirsL.count()):
             d = self.ui.dirsL.item(i)
             ## print i,d.text(), self.options
@@ -335,12 +342,21 @@ class MCWindow(QMainWindow):
 
             try:
                 make_contact.processFolder(self.options, d.text(), progress=self.progress)
+            except make_contact.AbortException,e:
+                break
             except Exception,e:
                 print traceback.format_exc()
                 break
 
-        pdia.close()
-        self.pdia = None
+        end = time.time()
+        if not self.abort:
+            pd.logT.insertPlainText("All done, took %.2f secs." % (end-start))
+
+        pd.abortB.setText("Close")
+        pd.abortB.clicked.connect(pdia.close)
+        pdia.exec_()
+
+        self.pd = None
 
 
 

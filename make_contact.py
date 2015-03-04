@@ -10,6 +10,10 @@ from PIL import Image, ImageDraw, ImageFont
 from optparse import OptionParser
 
 
+
+class AbortException(Exception):
+    pass
+
 # Helpers
 
 def enum(*sequential, **named):
@@ -381,7 +385,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
         if progress:
             if progress(curimg / float(nimgs), 0.):
-                raise Exception()
+                raise AbortException()
 
 
         log(LogLevels.DEBUG, "layoutImages: rowwidth=%d\n" % rowwidth)
@@ -573,11 +577,11 @@ def createContactSheet(options, folder, progress = None):
 
     if not options['recursive']:
         files = os.listdir(folder)
-        files = [ folder + '/' + f for f in files if fre.match(f) ]
+        files = [ os.path.join(folder,f) for f in files if fre.match(f) ]
     else:
         files = []
         for root, dirs, dfiles in os.walk(folder):
-            files += [root + '/' + f for f in dfiles if fre.match(f) ]
+            files += [os.path.join(root, f) for f in dfiles if fre.match(f) ]
 
 
     if len(files) == 0:
@@ -716,6 +720,8 @@ def processFolder(options, folder, progress = None):
             fre = re.compile(options['filetype'])
             files = [ ff for ff in os.listdir(f) if fre.match(ff) ]
 
+            ##print r,f,files
+            
             if len(files) > 0:
                 createContactSheet(options, f, progress)
 
