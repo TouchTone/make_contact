@@ -239,6 +239,10 @@ def drawLabel(im, draw, text, pos, size, options):
 
     (ts, dum) = labelfont.font.getsize(text)
 
+    while ts[0] > size[0] and len(text) > 3:
+        text = "..." + text[4:]
+        (ts, dum) = labelfont.font.getsize(text)
+
     x = (size[0] - ts[0]) / 2 + pos[0]
     y = pos[1] + size[1] - labelfontheight
 
@@ -334,6 +338,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         coverset = not cover
 
     curimg = 0
+    coverrows = 0
 
     while (h < height or height == -1) and curimg < nimgs:
 
@@ -382,6 +387,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                 log(LogLevels.DEBUG, "cover.size=(%d,%d)\n" % (cover.size))
 
                 coverset = True
+                coverrows = len(rows)
 
         if progress:
             if progress(curimg / float(nimgs), 0.):
@@ -457,7 +463,22 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
     # Do we need to adjust last row? Can happen if only a few images in it.
     if rowfactors[-1] > 1.25 and len(rows) > 2:
-        # Try to borrow an image from second to last row
+        # Try to borrow an image from row with smallest scale
+
+        si = -1
+        ss = 100
+        facsum = 0
+        for i in range(coverrows, len(rows)):
+            facsum += rowfactors[i]
+            if rowfactors[i] <= ss:
+                ss = rowfactors[i]
+                si = i
+
+        if si != -1:
+            pass
+
+
+
         slr = rows[-2][:-1]
         lr = rows[-2][-1:] + rows[-1]
 
@@ -501,7 +522,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         out.paste(cover, (border, y))
 
         if labels:
-            lt = cover.filename.rsplit('/', 1)[-1]
+            lt = cover.filename.rsplit(os.path.sep, 1)[-1]
 
             drawLabel(out, draw, lt, (border, y), cover.size, loptions)
 
@@ -524,7 +545,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
             out.paste(ri, (x, y))
 
             if labels:
-                lt = im.filename.rsplit('/', 1)[-1]
+                lt = im.filename.rsplit(os.path.sep, 1)[-1]
 
                 drawLabel(out, draw, lt, (x,y), (t[0], t[1]), loptions)
 
@@ -714,12 +735,14 @@ def processFolder(options, folder, progress = None):
     else:
         for r in os.walk(folder):
 
-            f = r[0]
+            f = r[0].replace(os.path.sep, '/')
 
             # Any images in this folder?
             fre = re.compile(options['filetype'])
             files = [ ff for ff in os.listdir(f) if fre.match(ff) ]
 
+            ##print r,f,files
+            
             if len(files) > 0:
                 createContactSheet(options, f, progress)
 
