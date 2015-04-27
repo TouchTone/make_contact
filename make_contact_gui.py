@@ -135,7 +135,10 @@ class MCWindow(QMainWindow):
             self.ui.thumbCoverModeC.setCurrentIndex(2)
             self.ui.thumbCoverE.setText(options['cover'])
             self.ui.thumbCoverE.setEnabled(True)
-        self.ui.thumbCoverScaleS.setValue(options['coverscale'])
+        if options['coverscale'] == 0:
+            self.ui.thumbCoverScaleS.setCurrentIndex(self.ui.thumbCoverScaleS.count() - 1)
+        else:
+            self.ui.thumbCoverScaleS.setCurrentIndex(options['coverscale'] - 1)
 
         # Title Specs
         self.ui.titleEnableC.setChecked(options['title'] != "none")
@@ -180,7 +183,10 @@ class MCWindow(QMainWindow):
             else:
                 self.options['cover'] = self.ui.thumbCoverE.text()
             var = "Cover Scale"
-            self.options['coverscale'] = int(self.ui.thumbCoverScaleS.value())
+            if self.ui.thumbCoverScaleS.currentIndex() == self.ui.thumbCoverScaleS.count() - 1:
+                self.options['coverscale'] = 0
+            else:
+                self.options['coverscale'] = int(self.ui.thumbCoverScaleS.currentIndex() + 1)
             var = "Font Size"
             self.options['fontsize'] = int(self.ui.titleSizeE.text())
             var = "Sheet Height"

@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'mc_main.ui'
 #
-# Created: Fri Feb 27 17:34:31 2015
+# Created: Wed Mar  4 14:29:05 2015
 #      by: pyside-uic 0.2.13 running on PySide 1.1.0
 #
 # WARNING! All changes made in this file will be lost!
@@ -12,7 +12,7 @@ from PySide import QtCore, QtGui
 class Ui_mc_main(object):
     def setupUi(self, mc_main):
         mc_main.setObjectName("mc_main")
-        mc_main.resize(627, 700)
+        mc_main.resize(657, 736)
         self.centralWidget = QtGui.QWidget(mc_main)
         self.centralWidget.setObjectName("centralWidget")
         self.gridLayout_4 = QtGui.QGridLayout(self.centralWidget)
@@ -406,9 +406,14 @@ class Ui_mc_main(object):
         self.thumbCoverScaleL = QtGui.QLabel(self.thumbBox)
         self.thumbCoverScaleL.setObjectName("thumbCoverScaleL")
         self.gridLayout_2.addWidget(self.thumbCoverScaleL, 4, 0, 1, 1)
-        self.thumbCoverScaleS = QtGui.QSpinBox(self.thumbBox)
-        self.thumbCoverScaleS.setMaximum(10)
+        self.thumbCoverScaleS = QtGui.QComboBox(self.thumbBox)
         self.thumbCoverScaleS.setObjectName("thumbCoverScaleS")
+        self.thumbCoverScaleS.addItem("")
+        self.thumbCoverScaleS.addItem("")
+        self.thumbCoverScaleS.addItem("")
+        self.thumbCoverScaleS.addItem("")
+        self.thumbCoverScaleS.addItem("")
+        self.thumbCoverScaleS.addItem("")
         self.gridLayout_2.addWidget(self.thumbCoverScaleS, 4, 1, 1, 1)
         self.gridLayout_4.addWidget(self.thumbBox, 0, 1, 1, 1)
         self.titleBox = QtGui.QGroupBox(self.centralWidget)
@@ -670,7 +675,7 @@ class Ui_mc_main(object):
         self.gridLayout_4.addWidget(self.groupBox, 1, 1, 1, 1)
         mc_main.setCentralWidget(self.centralWidget)
         self.menuBar = QtGui.QMenuBar(mc_main)
-        self.menuBar.setGeometry(QtCore.QRect(0, 0, 627, 23))
+        self.menuBar.setGeometry(QtCore.QRect(0, 0, 657, 23))
         self.menuBar.setObjectName("menuBar")
         self.menuFile = QtGui.QMenu(self.menuBar)
         self.menuFile.setObjectName("menuFile")
@@ -691,6 +696,7 @@ class Ui_mc_main(object):
         self.menuBar.addAction(self.menuFile.menuAction())
 
         self.retranslateUi(mc_main)
+        self.thumbCoverScaleS.setCurrentIndex(2)
         QtCore.QObject.connect(self.actionQuit, QtCore.SIGNAL("activated()"), mc_main.close)
         QtCore.QMetaObject.connectSlotsByName(mc_main)
 
@@ -730,6 +736,12 @@ class Ui_mc_main(object):
         self.thumbCoverL.setText(QtGui.QApplication.translate("mc_main", "Cover File :", None, QtGui.QApplication.UnicodeUTF8))
         self.thumbCoverE.setAccessibleDescription(QtGui.QApplication.translate("mc_main", "File type/extension to use for sheet", None, QtGui.QApplication.UnicodeUTF8))
         self.thumbCoverScaleL.setText(QtGui.QApplication.translate("mc_main", "Cover Scale :", None, QtGui.QApplication.UnicodeUTF8))
+        self.thumbCoverScaleS.setItemText(0, QtGui.QApplication.translate("mc_main", "1 Thumb High", None, QtGui.QApplication.UnicodeUTF8))
+        self.thumbCoverScaleS.setItemText(1, QtGui.QApplication.translate("mc_main", "2 Thumbs High", None, QtGui.QApplication.UnicodeUTF8))
+        self.thumbCoverScaleS.setItemText(2, QtGui.QApplication.translate("mc_main", "3 Thumbs High", None, QtGui.QApplication.UnicodeUTF8))
+        self.thumbCoverScaleS.setItemText(3, QtGui.QApplication.translate("mc_main", "4 Thumbs High", None, QtGui.QApplication.UnicodeUTF8))
+        self.thumbCoverScaleS.setItemText(4, QtGui.QApplication.translate("mc_main", "5 ThumbsHigh", None, QtGui.QApplication.UnicodeUTF8))
+        self.thumbCoverScaleS.setItemText(5, QtGui.QApplication.translate("mc_main", "Full Sheet Width", None, QtGui.QApplication.UnicodeUTF8))
         self.titleBox.setTitle(QtGui.QApplication.translate("mc_main", "Title Specs", None, QtGui.QApplication.UnicodeUTF8))
         self.titleT.setText(QtGui.QApplication.translate("mc_main", "Auto", None, QtGui.QApplication.UnicodeUTF8))
         self.titleSizeE.setAccessibleDescription(QtGui.QApplication.translate("mc_main", "File type/extension to use for sheet", None, QtGui.QApplication.UnicodeUTF8))

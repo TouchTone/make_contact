@@ -6,6 +6,8 @@
 
 
 import os, sys, glob, re, math, random, fnmatch, copy, json, time
+import zipfile
+from StringIO import StringIO
 from PIL import Image, ImageDraw, ImageFont
 from optparse import OptionParser
 
@@ -251,8 +253,6 @@ def drawLabel(im, draw, text, pos, size, options):
 
 
 
-
-
 # Create a thumbnail page of size width x height using as many images from imgs as possible while keeping their height at least at 75% 
 # and at most 125% of thimgsize
 # forceFullSize: create a layout of exactly the given size, otherwise it could be smaller
@@ -264,7 +264,7 @@ def drawLabel(im, draw, text, pos, size, options):
 # if height == -1 determine it automatically
 # NOTE: imgs is changed! broken imges are removed and filenames may be replaced by actual images!
 
-def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None, loptions = None, labels = False, progress = None):
+def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None, loptions = None, labels = False, progress = None, zip = None):
     
     if len(imgs) == 0:
         raise UserWarning("layoutImages: got no images to layout?!?\n")
@@ -282,7 +282,10 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         while i < len(imgs):
             if not isinstance(imgs[i], Image.Image):
                 try:
-                    im = Image.open(imgs[i])
+                    if zip is None:
+                        im = Image.open(StringIO(zip.read(imgs[i])))
+                    else:
+                        im = Image.open(imgs[i])
 
                     imgs[i], factor = preresize(im, (thimgsize,thimgsize))
 
@@ -422,7 +425,10 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                     log(LogLevels.DEBUG, "layoutImages: loading (%d) %s " % (curimg, imgs[curimg]))
                     log(LogLevels.PROGRESS, ".")
 
-                    imgs[curimg] = Image.open(imgs[curimg])
+                    if zip is None:
+                        imgs[curimg] = Image.open(imgs[curimg])
+                    else:
+                        imgs[curimg] = Image.open(StringIO(zip.read(imgs[curimg])))
 
                     maxw = max(maxw, imgs[curimg].size[0])
                     maxh = max(maxh, imgs[curimg].size[1])
@@ -571,6 +577,8 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
 def createContactSheet(options, folder, progress = None):
 
+    zip = None
+
     outname = options['output']
 
     if outname == "auto":
@@ -585,6 +593,9 @@ def createContactSheet(options, folder, progress = None):
         else:
             outbase = options['outdir']
 
+        if options["zips"] and (folder.endswith("zip") or folder.endswith("ZIP")):
+            fname = fname[:-4]
+
         if len(outbase) > 0 and outbase[-1] == os.path.sep:
             outbase = outbase[:-1]
 
@@ -596,7 +607,15 @@ def createContactSheet(options, folder, progress = None):
 
     fre = re.compile(options['filetype'])
 
-    if not options['recursive']:
+    if options["zips"] and zipfile.is_zipfile(folder):
+        zip = zipfile.ZipFile(folder)
+
+        files = []
+        for f in zip.infolist():
+            if fre.match(f.filename):
+                files.append(f.filename)
+
+    elif not options['recursive']:
         files = os.listdir(folder)
         files = [ os.path.join(folder,f) for f in files if fre.match(f) ]
     else:
@@ -653,7 +672,10 @@ def createContactSheet(options, folder, progress = None):
         log(LogLevels.DEBUG, "Loading and scaling cover %s...\n" % cands[0])
 
         # Load and scale cover image
-        cover = Image.open(cands[0])
+        if not zip is None:
+            cover = Image.open(StringIO(zip.read(cands[0])))
+        else:
+            cover = Image.open(cands[0])
 
         if options['coverscale'] > 0:
             factor = options['thumbheight'] * options['coverscale'] / float(cover.size[1])
@@ -671,7 +693,7 @@ def createContactSheet(options, folder, progress = None):
 
 
     if options['title'] == "none":
-        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress)
+        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress, zip=zip)
     else:
 
         if not os.path.isfile(options['font']):
@@ -688,7 +710,7 @@ def createContactSheet(options, folder, progress = None):
 
         fh += 2 # Add a little border
 
-        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], topoffset = fh, border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress)
+        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], topoffset = fh, border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress, zip=zip)
 
         draw = ImageDraw.Draw(sheet)
 
@@ -726,6 +748,23 @@ def processFolder(options, folder, progress = None):
     if folder[-1] == os.path.sep:
         folder = folder[:-1]
 
+    fre = re.compile(options['filetype'])
+
+    # Zip file?
+    if options["zips"] and os.path.isfile(folder) and zipfile.is_zipfile(folder):
+        zip = zipfile.ZipFile(folder)
+
+        nf = 0
+        for f in zip.infolist():
+            if fre.match(f.filename):
+                nf += 1
+
+        if nf > 0:
+            createContactSheet(options, folder, progress)
+
+        return
+
+    # Directory?
     if not os.path.isdir(folder):
         log(LogLevels.INFO, "%s is not a folder, skipped.\n" % folder)
         return
@@ -738,7 +777,6 @@ def processFolder(options, folder, progress = None):
             f = r[0].replace(os.path.sep, '/')
 
             # Any images in this folder?
-            fre = re.compile(options['filetype'])
             files = [ ff for ff in os.listdir(f) if fre.match(ff) ]
 
             ##print r,f,files
@@ -779,6 +817,7 @@ if __name__ == "__main__":
     parser.add_option(      "--fontsize",       dest="fontsize",       default=24,             type="int", help="size of title text")
     parser.add_option(      "--random",         dest="random",         default=False,          action="store_true", help="randomize order of images")
     parser.add_option("-r", "--recursive",      dest="recursive",      default=False,          action="store_true", help="recursive collect images from subfolders")
+    parser.add_option(      "--zips",           dest="zips",           default=False,          action="store_true", help="try to use zip files as image sources")
     parser.add_option(      "--subdircontacts", dest="subdircontacts", default=False,          action="store_true", help="recursively create contact sheets for subfolders")
     parser.add_option(      "--no-overwrite",   dest="nooverwrite",    default=False,          action="store_true", help="don't overwrite existing contact sheets")
     parser.add_option(      "--labels",         dest="labels",         default=False,          action="store_true", help="put labels at bottom of thumbnails")
