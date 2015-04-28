@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'mc_main.ui'
 #
-# Created: Wed Mar  4 14:29:05 2015
+# Created: Mon Apr 27 10:25:58 2015
 #      by: pyside-uic 0.2.13 running on PySide 1.1.0
 #
 # WARNING! All changes made in this file will be lost!
@@ -493,21 +493,24 @@ class Ui_mc_main(object):
         self.dirsBox.setObjectName("dirsBox")
         self.gridLayout_5 = QtGui.QGridLayout(self.dirsBox)
         self.gridLayout_5.setObjectName("gridLayout_5")
-        self.dirsL = DirsList(self.dirsBox)
-        self.dirsL.setAcceptDrops(True)
-        self.dirsL.setEditTriggers(QtGui.QAbstractItemView.AnyKeyPressed|QtGui.QAbstractItemView.DoubleClicked|QtGui.QAbstractItemView.EditKeyPressed)
-        self.dirsL.setDragEnabled(True)
-        self.dirsL.setObjectName("dirsL")
-        self.gridLayout_5.addWidget(self.dirsL, 0, 0, 1, 2)
         self.dirsSubdirContactsB = QtGui.QCheckBox(self.dirsBox)
         self.dirsSubdirContactsB.setObjectName("dirsSubdirContactsB")
         self.gridLayout_5.addWidget(self.dirsSubdirContactsB, 2, 0, 1, 1)
         self.dirsSubdirImagesB = QtGui.QCheckBox(self.dirsBox)
         self.dirsSubdirImagesB.setObjectName("dirsSubdirImagesB")
         self.gridLayout_5.addWidget(self.dirsSubdirImagesB, 2, 1, 1, 1)
+        self.dirsZipB = QtGui.QCheckBox(self.dirsBox)
+        self.dirsZipB.setObjectName("dirsZipB")
+        self.gridLayout_5.addWidget(self.dirsZipB, 2, 2, 1, 1)
         self.dirsAddB = QtGui.QPushButton(self.dirsBox)
         self.dirsAddB.setObjectName("dirsAddB")
-        self.gridLayout_5.addWidget(self.dirsAddB, 1, 0, 1, 2)
+        self.gridLayout_5.addWidget(self.dirsAddB, 1, 0, 1, 3)
+        self.dirsL = DirsList(self.dirsBox)
+        self.dirsL.setAcceptDrops(True)
+        self.dirsL.setEditTriggers(QtGui.QAbstractItemView.AnyKeyPressed|QtGui.QAbstractItemView.DoubleClicked|QtGui.QAbstractItemView.EditKeyPressed)
+        self.dirsL.setDragEnabled(True)
+        self.dirsL.setObjectName("dirsL")
+        self.gridLayout_5.addWidget(self.dirsL, 0, 0, 1, 3)
         self.gridLayout_4.addWidget(self.dirsBox, 2, 0, 1, 2)
         self.groupBox = QtGui.QGroupBox(self.centralWidget)
         self.groupBox.setObjectName("groupBox")
@@ -759,6 +762,7 @@ class Ui_mc_main(object):
         self.dirsBox.setTitle(QtGui.QApplication.translate("mc_main", "Directories", None, QtGui.QApplication.UnicodeUTF8))
         self.dirsSubdirContactsB.setText(QtGui.QApplication.translate("mc_main", "Create contacts for Subdirs", None, QtGui.QApplication.UnicodeUTF8))
         self.dirsSubdirImagesB.setText(QtGui.QApplication.translate("mc_main", "Use images from subdirs", None, QtGui.QApplication.UnicodeUTF8))
+        self.dirsZipB.setText(QtGui.QApplication.translate("mc_main", "Use .zip as image sources", None, QtGui.QApplication.UnicodeUTF8))
         self.dirsAddB.setText(QtGui.QApplication.translate("mc_main", "Add ...", None, QtGui.QApplication.UnicodeUTF8))
         self.groupBox.setTitle(QtGui.QApplication.translate("mc_main", "Image Label Specs", None, QtGui.QApplication.UnicodeUTF8))
         self.labelEnableL.setText(QtGui.QApplication.translate("mc_main", "Enable", None, QtGui.QApplication.UnicodeUTF8))
