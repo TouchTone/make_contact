@@ -168,6 +168,7 @@ class MCWindow(QMainWindow):
 
         self.ui.dirsSubdirContactsB.setChecked(options["subdircontacts"])
         self.ui.dirsSubdirImagesB.setChecked(options["recursive"])
+        self.ui.dirsZipB.setChecked(options["zips"])
 
 
     def setOptions(self):
@@ -225,7 +226,9 @@ class MCWindow(QMainWindow):
             var = "Subdir Contacts"
             self.options['subdircontacts'] = self.ui.dirsSubdirContactsB.isChecked()
             var = "Subdir Images"
-            self.options['subdirimages'] = self.ui.dirsSubdirImagesB.isChecked()
+            self.options['recursive'] = self.ui.dirsSubdirImagesB.isChecked()
+            var = "Zips"
+            self.options['zips'] = self.ui.dirsZipB.isChecked()
 
         except Exception, e:
             print "Caught %s setting %s, please correct" % (e, var)
@@ -276,9 +279,13 @@ class MCWindow(QMainWindow):
 
     def addDirs(self):
         dia = QFileDialog()
-        dia.setFileMode(QFileDialog.DirectoryOnly)
         dia.setViewMode(QFileDialog.List)
-        dia.setOption(QFileDialog.ShowDirsOnly, True)
+        if not self.ui.dirsZipB.isChecked():
+            dia.setFileMode(QFileDialog.DirectoryOnly)
+            dia.setOption(QFileDialog.ShowDirsOnly, True)
+        else:
+            dia.setFileMode(QFileDialog.ExistingFiles)
+            dia.setNameFilter("Zip Archives (*.zip *.ZIP)")       
 
         # Hack to allow multi-selection (http://stackoverflow.com/questions/28544425/pyqt-qfiledialog-multiple-directory-selection)
         dia.setOption(QFileDialog.DontUseNativeDialog, True)
