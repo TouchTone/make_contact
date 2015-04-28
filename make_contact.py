@@ -9,8 +9,7 @@ import os, sys, glob, re, math, random, fnmatch, copy, json, time
 import zipfile
 from StringIO import StringIO
 from PIL import Image, ImageDraw, ImageFont
-from optparse import OptionParser
-
+import argparse
 
 
 class AbortException(Exception):
@@ -428,7 +427,9 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                     if zip is None:
                         imgs[curimg] = Image.open(imgs[curimg])
                     else:
+                        ifn = imgs[curimg]
                         imgs[curimg] = Image.open(StringIO(zip.read(imgs[curimg])))
+                        imgs[curimg].filename = ifn
 
                     maxw = max(maxw, imgs[curimg].size[0])
                     maxh = max(maxh, imgs[curimg].size[1])
@@ -607,7 +608,7 @@ def createContactSheet(options, folder, progress = None):
 
     fre = re.compile(options['filetype'])
 
-    if options["zips"] and zipfile.is_zipfile(folder):
+    if os.path.isfile(folder) and zipfile.is_zipfile(folder):
         zip = zipfile.ZipFile(folder)
 
         files = []
@@ -674,6 +675,7 @@ def createContactSheet(options, folder, progress = None):
         # Load and scale cover image
         if not zip is None:
             cover = Image.open(StringIO(zip.read(cands[0])))
+            cover.filename = cands[0]
         else:
             cover = Image.open(cands[0])
 
@@ -751,7 +753,7 @@ def processFolder(options, folder, progress = None):
     fre = re.compile(options['filetype'])
 
     # Zip file?
-    if options["zips"] and os.path.isfile(folder) and zipfile.is_zipfile(folder):
+    if os.path.isfile(folder) and zipfile.is_zipfile(folder):
         zip = zipfile.ZipFile(folder)
 
         nf = 0
@@ -784,6 +786,14 @@ def processFolder(options, folder, progress = None):
             if len(files) > 0:
                 createContactSheet(options, f, progress)
 
+            # Any zips in this folder?
+            if options["zips"]:
+                for ff in os.listdir(f):
+                    fff = os.path.join(f,ff)
+                    if zipfile.is_zipfile(fff):
+                        createContactSheet(options, fff, progress)
+                
+                
 
 
 if __name__ == "__main__":
@@ -795,38 +805,41 @@ if __name__ == "__main__":
     else:
         basedir = os.path.dirname(__file__)
 
-    parser = OptionParser()
+    parser = argparse.ArgumentParser("Create contact sheet(s) for image folders")
 
-    parser.add_option("-l", "--loglevel",       dest="loglevel",       default=LogLevels.PROGRESS, type="int", help="log level (1-5)")
-    parser.add_option("-o", "--output",         dest="output",         default="auto",         help="output filename, or auto")
-    parser.add_option(      "--outputtype",     dest="outputtype",     default="jpg",          help="output filetype for auto output")
-    parser.add_option(      "--outdir",         dest="outdir",         default="auto",         help="output firectory for contact sheets, or auto")
-    parser.add_option(      "--quality",        dest="quality",        default=85,             type="int", help="output JPEG quality")
-    parser.add_option(      "--thumbheight",    dest="thumbheight",    default=200,            type="int", help="height of thumbnails")
-    parser.add_option(      "--width",          dest="width",          default=900,            type="int", help="width of contact sheet")
-    parser.add_option(      "--height",         dest="height",         default=-1,             type="int", help="height of contact sheet (-1: auto-detect)")
-    parser.add_option("-b", "--background",     dest="background",     default="#000000",      help="background color")
-    parser.add_option(      "--filetype",       dest="filetype",       default=".*\.(jpg|jpeg|JPG|JPEG)$",        help="regex expression to pick files to use")
-    parser.add_option("-t", "--title",          dest="title",          default="auto",         help="title to add to top of sheet, auto for default, none for none")
-    parser.add_option(      "--tstats",         dest="tstats",         default=False,          action="store_true", help="add statistics after title")
-    parser.add_option(      "--titlecolor",     dest="titlecolor",     default="#ffffff",      help="color of title text")
-    parser.add_option(      "--border",         dest="border",         default="0",            type="int", help="width of border around thumbnails")
-    parser.add_option("-c", "--cover",          dest="cover",          default="none",         help="cover image filename regex, picked from images, auto for default")
-    parser.add_option(      "--coverscale",     dest="coverscale",     default=3.0,            type="float", help="scale factor for cover size")
-    parser.add_option(      "--font",           dest="font",           default="FreeSans.ttf", help="font file to use for title")
-    parser.add_option(      "--fontsize",       dest="fontsize",       default=24,             type="int", help="size of title text")
-    parser.add_option(      "--random",         dest="random",         default=False,          action="store_true", help="randomize order of images")
-    parser.add_option("-r", "--recursive",      dest="recursive",      default=False,          action="store_true", help="recursive collect images from subfolders")
-    parser.add_option(      "--zips",           dest="zips",           default=False,          action="store_true", help="try to use zip files as image sources")
-    parser.add_option(      "--subdircontacts", dest="subdircontacts", default=False,          action="store_true", help="recursively create contact sheets for subfolders")
-    parser.add_option(      "--no-overwrite",   dest="nooverwrite",    default=False,          action="store_true", help="don't overwrite existing contact sheets")
-    parser.add_option(      "--labels",         dest="labels",         default=False,          action="store_true", help="put labels at bottom of thumbnails")
-    parser.add_option(      "--labelsize",      dest="labelsize",      default="8",            type="int", help="font size for labels")
-    parser.add_option(      "--labelcolor",     dest="labelcolor",     default="#ffffff",      help="color for labels")
-    parser.add_option(      "--gui",            dest="gui",            default=False,          action="store_true", help="run GUI")
-    parser.add_option(      "--options",        dest="options",        default=None,           help="load options from file, overwriting command-line options")
+    parser.add_argument("-l", "--loglevel",       dest="loglevel",       default=LogLevels.PROGRESS, type=int, help="log level (1-5)")
+    parser.add_argument("-o", "--output",         dest="output",         default="auto",         help="output filename, or auto")
+    parser.add_argument(      "--outputtype",     dest="outputtype",     default="jpg",          help="output filetype for auto output")
+    parser.add_argument(      "--outdir",         dest="outdir",         default="auto",         help="output firectory for contact sheets, or auto")
+    parser.add_argument(      "--quality",        dest="quality",        default=85,             type=int, help="output JPEG quality")
+    parser.add_argument(      "--thumbheight",    dest="thumbheight",    default=200,            type=int, help="height of thumbnails")
+    parser.add_argument(      "--width",          dest="width",          default=900,            type=int, help="width of contact sheet")
+    parser.add_argument(      "--height",         dest="height",         default=-1,             type=int, help="height of contact sheet (-1: auto-detect)")
+    parser.add_argument("-b", "--background",     dest="background",     default="#000000",      help="background color")
+    parser.add_argument(      "--filetype",       dest="filetype",       default=".*\.(jpg|jpeg|JPG|JPEG)$",        help="regex expression to pick files to use")
+    parser.add_argument("-t", "--title",          dest="title",          default="auto",         help="title to add to top of sheet, auto for default, none for none")
+    parser.add_argument(      "--tstats",         dest="tstats",         default=False,          action="store_true", help="add statistics after title")
+    parser.add_argument(      "--titlecolor",     dest="titlecolor",     default="#ffffff",      help="color of title text")
+    parser.add_argument(      "--border",         dest="border",         default="0",            type=int, help="width of border around thumbnails")
+    parser.add_argument(      "--coverscale",     dest="coverscale",     default=3.0,            type=float, help="scale factor for cover size")
+    parser.add_argument("-c", "--cover",          dest="cover",          default="none",         help="cover image filename regex, picked from images, auto for default")
+    parser.add_argument(      "--font",           dest="font",           default="FreeSans.ttf", help="font file to use for title")
+    parser.add_argument(      "--fontsize",       dest="fontsize",       default=24,             type=int, help="size of title text")
+    parser.add_argument(      "--random",         dest="random",         default=False,          action="store_true", help="randomize order of images")
+    parser.add_argument("-r", "--recursive",      dest="recursive",      default=False,          action="store_true", help="recursive collect images from subfolders")
+    parser.add_argument(      "--zips",           dest="zips",           default=False,          action="store_true", help="try to use zip files as image sources")
+    parser.add_argument(      "--subdircontacts", dest="subdircontacts", default=False,          action="store_true", help="recursively create contact sheets for subfolders")
+    parser.add_argument(      "--no-overwrite",   dest="nooverwrite",    default=False,          action="store_true", help="don't overwrite existing contact sheets")
+    parser.add_argument(      "--labels",         dest="labels",         default=False,          action="store_true", help="put labels at bottom of thumbnails")
+    parser.add_argument(      "--labelsize",      dest="labelsize",      default="8",            type=int, help="font size for labels")
+    parser.add_argument(      "--labelcolor",     dest="labelcolor",     default="#ffffff",      help="color for labels")
+    parser.add_argument(      "--gui",            dest="gui",            default=False,          action="store_true", help="run GUI")
+    parser.add_argument(      "--options",        dest="options",        default=None,           help="load options from file, overwriting command-line options")
 
-    (options, args) = parser.parse_args()
+    parser.add_argument('folders', nargs='*', metavar='folders', type=str,  help='folders/zipfiles to create contacts for')
+    
+    options = parser.parse_args()
+
 
     if not options.options is None:
         fh = open(options.options, "r")
@@ -851,10 +864,10 @@ if __name__ == "__main__":
         sys.exit(0)
         
    
-    if len(args) == 0:
+    if len(options["folders"]) == 0:
         parser.print_help()
         sys.exit(1)
 
     
-    for folder in args:
+    for folder in options["folders"]:
         processFolder(options, folder)
