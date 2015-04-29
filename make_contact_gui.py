@@ -26,7 +26,6 @@ class MCWindow(QMainWindow):
         self.ui.setupUi(self)
     
         self.options = kwargs["options"]
-        self.args    = kwargs["args"]
 
         self.pd = None
 
@@ -58,7 +57,7 @@ class MCWindow(QMainWindow):
         self.ui.actionLoad_Config.triggered.connect(self.loadConfig)
         self.ui.actionSave_Config.triggered.connect(self.saveConfig)
 
-        self.setFromOptions(self.options, self.args)
+        self.setFromOptions(self.options)
         
             
     def quit(self):        
@@ -90,7 +89,7 @@ class MCWindow(QMainWindow):
         fh.close()
 
 
-    def setFromOptions(self, options, args = None):
+    def setFromOptions(self, options):
 
         # Sheet Specs
         self.ui.fileExtE.setText(options['outputtype'])
@@ -162,8 +161,8 @@ class MCWindow(QMainWindow):
             wid.setStyleSheet("background-color: %s" % col.name());
 
         # Dirs list
-        if not args is None:
-            for d in args:
+        if options["folders"]:
+            for d in options["folders"]:
                 self.ui.dirsL.addItem(d)
 
         self.ui.dirsSubdirContactsB.setChecked(options["subdircontacts"])
@@ -367,12 +366,12 @@ class MCWindow(QMainWindow):
 
 
 
-def run(options, args):
+def run(options):
 
     global qapp    
     qapp = QApplication([])
 
-    win = MCWindow(options = options, args = args)
+    win = MCWindow(options = options)
 
     make_contact.logpipe = win.logpipe
 

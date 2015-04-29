@@ -789,7 +789,7 @@ def processFolder(options, folder, progress = None):
             # Any zips in this folder?
             if options["zips"]:
                 for ff in os.listdir(f):
-                    fff = os.path.join(f,ff)
+                    fff = f + "/" + ff
                     if zipfile.is_zipfile(fff):
                         createContactSheet(options, fff, progress)
                 
@@ -859,7 +859,7 @@ if __name__ == "__main__":
         
         import make_contact_gui
        
-        make_contact_gui.run(options, args)
+        make_contact_gui.run(options)
         
         sys.exit(0)
         
