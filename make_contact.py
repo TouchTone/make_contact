@@ -6,7 +6,7 @@
 
 
 import os, sys, glob, re, math, random, fnmatch, copy, json, time
-import zipfile
+import zipfile, rarfile
 from StringIO import StringIO
 from PIL import Image, ImageDraw, ImageFont
 import argparse
@@ -263,7 +263,7 @@ def drawLabel(im, draw, text, pos, size, options):
 # if height == -1 determine it automatically
 # NOTE: imgs is changed! broken imges are removed and filenames may be replaced by actual images!
 
-def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None, loptions = None, labels = False, progress = None, zip = None):
+def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None, loptions = None, labels = False, progress = None, archive = None):
     
     if len(imgs) == 0:
         raise UserWarning("layoutImages: got no images to layout?!?\n")
@@ -281,8 +281,8 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         while i < len(imgs):
             if not isinstance(imgs[i], Image.Image):
                 try:
-                    if zip is None:
-                        im = Image.open(StringIO(zip.read(imgs[i])))
+                    if archive is None:
+                        im = Image.open(StringIO(archive.read(imgs[i])))
                     else:
                         im = Image.open(imgs[i])
 
@@ -424,11 +424,11 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                     log(LogLevels.DEBUG, "layoutImages: loading (%d) %s " % (curimg, imgs[curimg]))
                     log(LogLevels.PROGRESS, ".")
 
-                    if zip is None:
+                    if archive is None:
                         imgs[curimg] = Image.open(imgs[curimg])
                     else:
                         ifn = imgs[curimg]
-                        imgs[curimg] = Image.open(StringIO(zip.read(imgs[curimg])))
+                        imgs[curimg] = Image.open(StringIO(archive.read(imgs[curimg])))
                         imgs[curimg].filename = ifn
 
                     maxw = max(maxw, imgs[curimg].size[0])
@@ -578,7 +578,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
 def createContactSheet(options, folder, progress = None):
 
-    zip = None
+    archive = None
 
     outname = options['output']
 
@@ -594,7 +594,7 @@ def createContactSheet(options, folder, progress = None):
         else:
             outbase = options['outdir']
 
-        if options["zips"] and (folder.endswith("zip") or folder.endswith("ZIP")):
+        if options["archives"] and folder.rsplit('.',1)[-1] in ["zip", "ZIP", "rar", "RAR"]:
             fname = fname[:-4]
 
         if len(outbase) > 0 and outbase[-1] == os.path.sep:
@@ -609,10 +609,18 @@ def createContactSheet(options, folder, progress = None):
     fre = re.compile(options['filetype'])
 
     if os.path.isfile(folder) and zipfile.is_zipfile(folder):
-        zip = zipfile.ZipFile(folder)
+        archive = zipfile.ZipFile(folder)
 
         files = []
-        for f in zip.infolist():
+        for f in archive.infolist():
+            if fre.match(f.filename):
+                files.append(f.filename)
+
+    elif os.path.isfile(folder) and rarfile.is_rarfile(folder):
+        archive = rarfile.RarFile(folder)
+
+        files = []
+        for f in archive.infolist():
             if fre.match(f.filename):
                 files.append(f.filename)
 
@@ -673,8 +681,8 @@ def createContactSheet(options, folder, progress = None):
         log(LogLevels.DEBUG, "Loading and scaling cover %s...\n" % cands[0])
 
         # Load and scale cover image
-        if not zip is None:
-            cover = Image.open(StringIO(zip.read(cands[0])))
+        if not archive is None:
+            cover = Image.open(StringIO(archive.read(cands[0])))
             cover.filename = cands[0]
         else:
             cover = Image.open(cands[0])
@@ -712,7 +720,7 @@ def createContactSheet(options, folder, progress = None):
 
         fh += 2 # Add a little border
 
-        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], topoffset = fh, border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress, zip=zip)
+        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], topoffset = fh, border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress, archive=archive)
 
         draw = ImageDraw.Draw(sheet)
 
@@ -754,10 +762,23 @@ def processFolder(options, folder, progress = None):
 
     # Zip file?
     if os.path.isfile(folder) and zipfile.is_zipfile(folder):
-        zip = zipfile.ZipFile(folder)
+        archive = zipfile.ZipFile(folder)
 
         nf = 0
-        for f in zip.infolist():
+        for f in archive.infolist():
+            if fre.match(f.filename):
+                nf += 1
+
+        if nf > 0:
+            createContactSheet(options, folder, progress)
+
+        return
+
+    if os.path.isfile(folder) and rarfile.is_rarfile(folder):
+        archive = rarfile.RarFile(folder)
+
+        nf = 0
+        for f in archive.infolist():
             if fre.match(f.filename):
                 nf += 1
 
@@ -786,13 +807,17 @@ def processFolder(options, folder, progress = None):
             if len(files) > 0:
                 createContactSheet(options, f, progress)
 
-            # Any zips in this folder?
-            if options["zips"]:
+            # Any archives in this folder?
+            if options["archives"]:
                 for ff in os.listdir(f):
                     fff = f + "/" + ff
+                    if os.path.isdir(fff):
+                        continue
                     if zipfile.is_zipfile(fff):
                         createContactSheet(options, fff, progress)
-                
+                    if rarfile.is_rarfile(fff):
+                        createContactSheet(options, fff, progress)
+
                 
 
 
@@ -827,7 +852,7 @@ if __name__ == "__main__":
     parser.add_argument(      "--fontsize",       dest="fontsize",       default=24,             type=int, help="size of title text")
     parser.add_argument(      "--random",         dest="random",         default=False,          action="store_true", help="randomize order of images")
     parser.add_argument("-r", "--recursive",      dest="recursive",      default=False,          action="store_true", help="recursive collect images from subfolders")
-    parser.add_argument(      "--zips",           dest="zips",           default=False,          action="store_true", help="try to use zip files as image sources")
+    parser.add_argument(      "--archives",       dest="archives",       default=False,          action="store_true", help="try to use zip/rar files as image sources")
     parser.add_argument(      "--subdircontacts", dest="subdircontacts", default=False,          action="store_true", help="recursively create contact sheets for subfolders")
     parser.add_argument(      "--no-overwrite",   dest="nooverwrite",    default=False,          action="store_true", help="don't overwrite existing contact sheets")
     parser.add_argument(      "--labels",         dest="labels",         default=False,          action="store_true", help="put labels at bottom of thumbnails")
@@ -836,7 +861,7 @@ if __name__ == "__main__":
     parser.add_argument(      "--gui",            dest="gui",            default=False,          action="store_true", help="run GUI")
     parser.add_argument(      "--options",        dest="options",        default=None,           help="load options from file, overwriting command-line options")
 
-    parser.add_argument('folders', nargs='*', metavar='folders', type=str,  help='folders/zipfiles to create contacts for')
+    parser.add_argument('folders', nargs='*', metavar='folders', type=str,  help='folders/zip/rarfiles to create contacts for')
     
     options = parser.parse_args()
 
