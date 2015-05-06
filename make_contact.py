@@ -6,7 +6,7 @@
 
 
 import os, sys, glob, re, math, random, fnmatch, copy, json, time
-import zipfile, rarfile
+import zipfile, rarfile, sevenzfile
 from StringIO import StringIO
 from PIL import Image, ImageDraw, ImageFont
 import argparse
@@ -624,6 +624,14 @@ def createContactSheet(options, folder, progress = None):
             if fre.match(f.filename):
                 files.append(f.filename)
 
+    elif os.path.isfile(folder) and sevenzfile.is_7zfile(folder):
+        archive = sevenzfile.SevenZFile(folder)
+
+        files = []
+        for f in archive.infolist():
+            if fre.match(f.filename):
+                files.append(f.filename)
+
     elif not options['recursive']:
         files = os.listdir(folder)
         files = [ os.path.join(folder,f) for f in files if fre.match(f) ]
@@ -787,6 +795,19 @@ def processFolder(options, folder, progress = None):
 
         return
 
+    if os.path.isfile(folder) and sevenzfile.is_7zfile(folder):
+        archive = sevenzfile.SevenZFile(folder)
+
+        nf = 0
+        for f in archive.infolist():
+            if fre.match(f.filename):
+                nf += 1
+
+        if nf > 0:
+            createContactSheet(options, folder, progress)
+
+        return
+
     # Directory?
     if not os.path.isdir(folder):
         log(LogLevels.INFO, "%s is not a folder, skipped.\n" % folder)
@@ -816,6 +837,8 @@ def processFolder(options, folder, progress = None):
                     if zipfile.is_zipfile(fff):
                         createContactSheet(options, fff, progress)
                     if rarfile.is_rarfile(fff):
+                        createContactSheet(options, fff, progress)
+                    if sevenzfile.is_7zfile(fff):
                         createContactSheet(options, fff, progress)
 
                 
