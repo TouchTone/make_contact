@@ -195,7 +195,7 @@ class MCWindow(QMainWindow):
             else:
                 self.options['height'] = int(self.ui.fileHeightE.text())
             var = "Label Enable"
-            self.options['labels'] = self.ui.fileHeightT.isChecked()
+            self.options['labels'] = self.ui.labelEnableC.isChecked()
             var = "Label Size"
             self.options['labelsize'] = int(self.ui.labelSizeE.text())
             var = "Overwrite"

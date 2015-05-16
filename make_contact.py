@@ -711,7 +711,7 @@ def createContactSheet(options, folder, progress = None):
 
 
     if options['title'] == "none":
-        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress, zip=zip)
+        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress)
     else:
 
         if not os.path.isfile(options['font']):
