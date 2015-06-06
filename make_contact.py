@@ -586,8 +586,11 @@ def createContactSheet(options, folder, progress = None):
         try:
             fbase, fname = folder.rsplit('/', 1)
         except ValueError:
-            fbase = "."
-            fname = folder
+            try:
+                fbase, fname = folder.rsplit(os.path.sep, 1)
+            except ValueError:
+                fbase = "."
+                fname = folder
 
         if options['outdir'] == "auto" or options['outdir'] == '':
             outbase = fbase
