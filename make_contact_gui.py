@@ -52,6 +52,7 @@ class MCWindow(QMainWindow):
         self.ui.dirsSubdirContactsB.stateChanged.connect(self.ui.dirsSubdirImagesB.setDisabled)
 
         self.ui.dirsAddB.clicked.connect(self.addDirs)
+        self.ui.dirsClearB.clicked.connect(self.clearDirs)
         self.ui.runB.clicked.connect(self.run)
 
         self.ui.actionLoad_Config.triggered.connect(self.loadConfig)
@@ -84,8 +85,9 @@ class MCWindow(QMainWindow):
         if fileName[0] == '':
             return
 
+        self.setOptions()
         fh = open(fileName[0], "w")
-        json.dump(self.options, fh, indent=4)
+        json.dump(self.options, fh, indent=4, sort_keys=True)
         fh.close()
 
 
@@ -298,6 +300,9 @@ class MCWindow(QMainWindow):
             for d in newDirs:
                 self.ui.dirsL.addItem(d)
 
+    def clearDirs(self):
+        self.ui.dirsL.clear()
+
 
     def progress(self, layout, compose):
         #print "Progress:",layout,compose
@@ -376,6 +381,15 @@ def run(options):
     make_contact.logpipe = win.logpipe
 
     QObject.connect(qapp, SIGNAL("lastWindowClosed()"), win, SLOT("quit()"))
+
+    # set app icon
+    app_icon = QIcon()
+    app_icon.addFile('icons/16x16.png', QSize(16, 16))
+    app_icon.addFile('icons/24x24.png', QSize(24, 24))
+    app_icon.addFile('icons/32x32.png', QSize(32, 32))
+    app_icon.addFile('icons/48x48.png', QSize(48, 48))
+    app_icon.addFile('icons/256x256.png', QSize(256, 256))
+    qapp.setWindowIcon(app_icon)
 
     win.show()
     
