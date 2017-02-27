@@ -2,8 +2,8 @@
 
 # Form implementation generated from reading ui file 'mc_main.ui'
 #
-# Created: Wed May  6 00:34:52 2015
-#      by: pyside-uic 0.2.13 running on PySide 1.1.1
+# Created: Fri Feb 10 15:55:15 2017
+#      by: pyside-uic 0.2.13 running on PySide 1.2.2
 #
 # WARNING! All changes made in this file will be lost!
 
@@ -504,7 +504,10 @@ class Ui_mc_main(object):
         self.gridLayout_5.addWidget(self.dirsArchivesB, 2, 2, 1, 1)
         self.dirsAddB = QtGui.QPushButton(self.dirsBox)
         self.dirsAddB.setObjectName("dirsAddB")
-        self.gridLayout_5.addWidget(self.dirsAddB, 1, 0, 1, 3)
+        self.gridLayout_5.addWidget(self.dirsAddB, 1, 0, 1, 2)
+        self.dirsClearB = QtGui.QPushButton(self.dirsBox)
+        self.dirsClearB.setObjectName("dirsClearB")
+        self.gridLayout_5.addWidget(self.dirsClearB, 1, 2, 1, 1)
         self.dirsL = DirsList(self.dirsBox)
         self.dirsL.setAcceptDrops(True)
         self.dirsL.setEditTriggers(QtGui.QAbstractItemView.AnyKeyPressed|QtGui.QAbstractItemView.DoubleClicked|QtGui.QAbstractItemView.EditKeyPressed)
@@ -764,6 +767,7 @@ class Ui_mc_main(object):
         self.dirsSubdirImagesB.setText(QtGui.QApplication.translate("mc_main", "Use images from subdirs", None, QtGui.QApplication.UnicodeUTF8))
         self.dirsArchivesB.setText(QtGui.QApplication.translate("mc_main", "Use archives (zip/rar/7z) as image sources", None, QtGui.QApplication.UnicodeUTF8))
         self.dirsAddB.setText(QtGui.QApplication.translate("mc_main", "Add ...", None, QtGui.QApplication.UnicodeUTF8))
+        self.dirsClearB.setText(QtGui.QApplication.translate("mc_main", "Clear", None, QtGui.QApplication.UnicodeUTF8))
         self.groupBox.setTitle(QtGui.QApplication.translate("mc_main", "Image Label Specs", None, QtGui.QApplication.UnicodeUTF8))
         self.labelEnableL.setText(QtGui.QApplication.translate("mc_main", "Enable", None, QtGui.QApplication.UnicodeUTF8))
         self.labelSizeL.setText(QtGui.QApplication.translate("mc_main", "Font Size", None, QtGui.QApplication.UnicodeUTF8))
