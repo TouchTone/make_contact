@@ -189,6 +189,11 @@ def layoutRow(pics, width, height = -1, border = 0, thimgsize = 150):
     factor = effw / float(iw)
     th = int(thimgsize * factor)
 
+    # Is that higher than max height?
+    if height != -1 and th > height:
+        factor = factor * height / th
+        th = int(thimgsize * factor)
+        
     # Calculate sizes based on factor
     tsizes = []
     iw = 0
@@ -200,20 +205,25 @@ def layoutRow(pics, width, height = -1, border = 0, thimgsize = 150):
     # Adjustment pixel sizes to match width exactly
     todo = effw - iw
     ind = 0
-    if todo > 0:
-        while todo > 0:
-            tsizes[ind] = (tsizes[ind][0] + 1, tsizes[ind][1])
-            todo = todo - 1
-            ind = ind + 1
-            if ind >= len(pics):
-                ind = 0
-    else:
-        while todo < 0:
-            tsizes[ind] = (tsizes[ind][0] - 1, tsizes[ind][1])
-            todo = todo + 1
-            ind = ind + 1
-            if ind >= len(pics):
-                ind = 0
+    
+    # Only adjust up to 10% image width
+    stodo = min(todo, width * .1)
+    todo -= stodo
+    if todo == 0:
+        if stodo > 0:
+            while stodo > 0:
+                tsizes[ind] = (tsizes[ind][0] + 1, tsizes[ind][1])
+                stodo = stodo - 1
+                ind = ind + 1
+                if ind >= len(pics):
+                    ind = 0
+        elif stodo < 0:
+            while stodo < 0:
+                tsizes[ind] = (tsizes[ind][0] - 1, tsizes[ind][1])
+                stodo = stodo + 1
+                ind = ind + 1
+                if ind >= len(pics):
+                    ind = 0
 
     # Return results
     return tsizes, th, factor, effw - iw
@@ -263,7 +273,7 @@ def drawLabel(im, draw, text, pos, size, options):
 # if height == -1 determine it automatically
 # NOTE: imgs is changed! broken imges are removed and filenames may be replaced by actual images!
 
-def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None, loptions = None, labels = False, progress = None, archive = None):
+def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None, fixedcoverheight = True, loptions = None, lastrowmaxscale = 1.25, labels = False, progress = None, archive = None):
     
     if len(imgs) == 0:
         raise UserWarning("layoutImages: got no images to layout?!?\n")
@@ -344,6 +354,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
     while (h < height or height == -1) and curimg < nimgs:
 
+        log(LogLevels.DEBUG, "=== New line. h=%d\n" % (h))
         # Try to keep space for cover, if any
         rowwidth = width
         if not coverset:
@@ -359,16 +370,23 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                 th = h - topoffset - 2 * border
                 log(LogLevels.DEBUG, "cs=%s tw=%d th=%d topoffset=%d\n" % (cs, tw, th, topoffset))
 
-                cfactor = float(tw + cs[0])/(cs[0] + float(cs[1]) / th * tw)
-                tfactor = cfactor * float(cs[1]) / th
+                if fixedcoverheight:
+                    cfactor = 1.
+                    tfactor = 1.
+                    crheight = cs[1] / math.floor(cs[1] / float(thimgsize))
+                else:
+                    cfactor = float(tw + cs[0])/(cs[0] + float(cs[1]) / th * tw)
+                    tfactor = cfactor * float(cs[1]) / th
+                    crheight = -1
 
                 # New layout for cover-side rows. Start from the top.
                 h = topoffset + border
 
                 nrw = int(rowwidths[0] * tfactor)
+                log(LogLevels.DEBUG, "cfactor=%f cs=%s tfactor=%f rowwidths=%s nrw=%d\n" % (cfactor, cs, tfactor, rowwidths, nrw))
 
                 for ri, row in enumerate(rows):
-                    ts, rh, factor, leftover = layoutRow(row, nrw, border=border, thimgsize=thimgsize)
+                    ts, rh, factor, leftover = layoutRow(row, nrw, height = crheight, border=border, thimgsize=thimgsize)
 
                     tsizes[ri] = ts
                     rowfactors[ri] = factor
@@ -379,14 +397,27 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
                     log(LogLevels.DEBUG, "rw=%d\n" % rowwidths[ri])
 
-                log(LogLevels.DEBUG, "h=%f tfactor=%f\n" % (h,tfactor))
+                # Make cover fit tight, if 
+                if fixedcoverheight:
+                    if h != topoffset + 2 * border + cs[1]:
+                        d = topoffset + 2 * border + cs[1] - h
+                        rowheights[ri] += d
+                        for i in range(len(tsizes[ri])):
+                            tsizes[ri][i] = (tsizes[ri][i][0], tsizes[ri][i][1] + d)
+                        h = topoffset + 2 * border + cs[1]
+                        
+                    cb = (cs[0], h - topoffset - 2 * border)
 
-                # Make cover fit tight
-                cb = (width - rowwidths[0] - border, h - topoffset - 2 * border)
+                else:
+                    cb = (width - rowwidths[0] - border, h - topoffset - 2 * border)
+
+                log(LogLevels.DEBUG, "h=%d tfactor=%f\n" % (h,tfactor))
 
                 log(LogLevels.DEBUG, "cfactor=%f cs=%s cb=%s\n" % (cfactor, cs,cb))
                 cover = resize(cover, cb, center=False)
                 log(LogLevels.DEBUG, "cover.size=(%d,%d)\n" % (cover.size))
+                
+                log(LogLevels.DEBUG, "layoutImages: rowwidth=%s ts=%s rh=%s factor=%s leftover=%s\n" % (rowwidth, ts, rh, factor, leftover))
 
                 coverset = True
                 coverrows = len(rows)
@@ -396,7 +427,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                 raise AbortException()
 
 
-        log(LogLevels.DEBUG, "layoutImages: rowwidth=%d\n" % rowwidth)
+        log(LogLevels.DEBUG, "layoutImages: rowwidth=%d h=%d\n" % (rowwidth, h))
 
         # Current row
         lastrow = None
@@ -451,8 +482,10 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
             curimg += 1
 
             ts, rh, factor, leftover = layoutRow(row, rowwidth, border=border, thimgsize=thimgsize)
-
-        if abs(factor - 1) < abs(lastfactor - 1):
+            log(LogLevels.DEBUG, "layoutImages: rowwidth=%s ts=%s rh=%s factor=%s leftover=%s\n" % (rowwidth, ts, rh, factor, leftover))
+        
+        log(LogLevels.DEBUG, "layoutImages: factor=%f lastfactor=%f\n" % (factor, lastfactor))    
+        if abs(factor - 1) < abs(lastfactor - 1) and not (fixedcoverheight and not coverset):
             tsizes.append(ts)
             rows.append(row)
             rowfactors.append(factor)
@@ -469,37 +502,44 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         h += rh + border
 
     # Do we need to adjust last row? Can happen if only a few images in it.
-    if rowfactors[-1] > 1.25 and len(rows) > 2:
-        # Try to borrow an image from row with smallest scale
+    if rowfactors[-1] > lastrowmaxscale and len(rows) > 2:
+        
+        if cover and len(rows) > coverrows + 2:
+            # Try to borrow an image from row with smallest scale
 
-        si = -1
-        ss = 100
-        facsum = 0
-        for i in range(coverrows, len(rows)):
-            facsum += rowfactors[i]
-            if rowfactors[i] <= ss:
-                ss = rowfactors[i]
-                si = i
+            si = -1
+            ss = 100
+            facsum = 0
+            for i in range(coverrows, len(rows)):
+                facsum += rowfactors[i]
+                if rowfactors[i] <= ss:
+                    ss = rowfactors[i]
+                    si = i
 
-        if si != -1:
-            pass
+            if si != -1:
+                pass
 
+            slr = rows[-2][:-1]
+            lr = rows[-2][-1:] + rows[-1]
 
+            sts, srh, sfactor, sleftover = layoutRow(slr, rowwidths[-2], border=border, thimgsize=thimgsize)
+            lts, lrh, lfactor, lleftover = layoutRow(lr, rowwidths[-1], border=border, thimgsize=thimgsize)
 
-        slr = rows[-2][:-1]
-        lr = rows[-2][-1:] + rows[-1]
+            if sfactor + lfactor < rowfactors[-2] + rowfactors[-1]:
+                h = h - rowheights[-2] - rowheights[-1] + srh + lrh
+                rows[-2:]       = [slr, lr]
+                rowfactors[-2:] = [sfactor, lfactor]
+                tsizes[-2:]     = [sts, lts]
+                rowheights[-2:] = [srh, lrh]
 
-        sts, srh, sfactor, sleftover = layoutRow(slr, rowwidths[-2], border=border, thimgsize=thimgsize)
-        lts, lrh, lfactor, lleftover = layoutRow(lr, rowwidths[-1], border=border, thimgsize=thimgsize)
-
-        if sfactor + lfactor < rowfactors[-2] + rowfactors[-1]:
-            rows[-2:]       = [slr, lr]
-            rowfactors[-2:] = [sfactor, lfactor]
-            tsizes[-2:]     = [sts, lts]
-
-            h = h - rowheights[-2] - rowheights[-1] + srh + lrh
-
-
+        # Last row too high? Give up on filling width, just use pictures at thimgsize
+        if rowfactors[-1] > lastrowmaxscale:
+            lts, lrh, lfactor, lleftover = layoutRow(rows[-1], rowwidths[-1], border=border, thimgsize=thimgsize, height=thimgsize * lastrowmaxscale)
+ 
+            h = h - rowheights[-1] + thimgsize
+            rowfactors[-1] = lastrowmaxscale            
+            tsizes[-1] = lts
+            
     log(LogLevels.PROGRESS, "\nAssembling result: ")
 
     if height == -1:
@@ -514,7 +554,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         rowfactors = rowfactors[:-1]
         tsizes = tsizes[:-1]
 
-    log(LogLevels.DEBUG, "layoutImages: rows: %s rowwidths: %s\n" % (rows, rowwidths))
+    log(LogLevels.DEBUG, "layoutImages: rows: %s \nrowwidths: %s rowheights: %s\n" % (rows, rowwidths, rowheights))
 
     # Step 3: Assemble images
     if forceFullSize == False:
@@ -526,6 +566,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
     draw = ImageDraw.Draw(out, "RGBA")
 
     if cover:
+        log(LogLevels.DEBUG, "Out Cover (%d,%d) at %d,%d\n" % (cover.size[0], cover.size[1], border, y))
         out.paste(cover, (border, y))
 
         if labels:
@@ -541,7 +582,7 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
         r = rows[i]
         rw = rowwidths[i]
         if cover and y < cover.size[1]:
-            x = (width-rw) + border
+            x = cover.size[0] + 2 * border # (width-rw) + border
         else:
             x = int((width-rw) / 2.) + border
 
@@ -657,6 +698,8 @@ def createContactSheet(options, folder, progress = None):
     else:
         files.sort()
 
+    if options['imageskip']:
+        files = [files[i] for i in range(0, len(files), options['imageskip'])]
 
     try:
         f = folder.rsplit('/', 1)[-1]
@@ -679,24 +722,46 @@ def createContactSheet(options, folder, progress = None):
             if covre.match(f):
                 cands.append(f)
 
-        if len(cands) == 0:
-            log(LogLevels.DEBUG, "Found no cover candidate, using first image.\n")
-            cands.append(files[0])
+        covername = None
+        if options['portraitcover']:
+            if len(cands) > 0:
+                log(LogLevels.DEBUG, "Found more than cover candidate(s) (%s), checking for portrait one.\n" % cands)
+                
+                for c in cands:
+                    i = Image.open(c)
+                    s = i.size
+                    if s[0] <= s[1]:
+                        covername = c
+                        break
+               
+            if not covername:
+                log(LogLevels.DEBUG, "Found no cover candidate, using first portrait image.\n")
+                for c in files:
+                    i = Image.open(c)
+                    s = i.size
+                    if s[0] <= s[1]:
+                        covername = c
+                        break        
+        else:
+            if len(cands) == 0:
+                log(LogLevels.DEBUG, "Found no cover candidate, using first image.\n")
+                covername = files[0]
 
-        elif len(cands) > 1:
-            log(LogLevels.DEBUG, "Found more than 1 cover candidate (%s), using first, ignoring others.\n" % cands)
+            elif len(cands) > 1:
+                log(LogLevels.DEBUG, "Found more than 1 cover candidate (%s), using first, ignoring others.\n" % cands)
+                covername = cands[0]
 
         # Remove cover(s) from files list
-        files = [ f for f in files if not f in cands ]
+        files = [ f for f in files if f != covername ]
 
-        log(LogLevels.DEBUG, "Loading and scaling cover %s...\n" % cands[0])
+        log(LogLevels.DEBUG, "Loading and scaling cover %s...\n" % covername)
 
         # Load and scale cover image
         if not archive is None:
-            cover = Image.open(StringIO(archive.read(cands[0])))
-            cover.filename = cands[0]
+            cover = Image.open(StringIO(archive.read(covername)))
+            cover.filename = covername
         else:
-            cover = Image.open(cands[0])
+            cover = Image.open(covername)
 
         if options['coverscale'] > 0:
             factor = options['thumbheight'] * options['coverscale'] / float(cover.size[1])
@@ -708,13 +773,16 @@ def createContactSheet(options, folder, progress = None):
             factor = cw / cover.size[0]
             csize = (int(cover.size[0] * factor), int(cover.size[1] * factor))
 
+        log(LogLevels.DEBUG, "Cover scaled to %dx%d...\n" % (csize))
+        
         cover = resize(cover, csize, center=False)
     else:
         cover = None
 
 
     if options['title'] == "none":
-        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress)
+        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], border = options['border'], 
+                                        forceFullSize = False, labels = options['labels'], lastrowmaxscale = options['lastrowmaxscale'], progress=progress)
     else:
 
         if not os.path.isfile(options['font']):
@@ -873,10 +941,13 @@ if __name__ == "__main__":
     parser.add_argument(      "--titlecolor",     dest="titlecolor",     default="#ffffff",      help="color of title text")
     parser.add_argument(      "--border",         dest="border",         default="0",            type=int, help="width of border around thumbnails")
     parser.add_argument(      "--coverscale",     dest="coverscale",     default=3.0,            type=float, help="scale factor for cover size")
+    parser.add_argument(      "--lastrowmaxscale",dest="lastrowmaxscale",default=1.25,           type=float, help="maximum scale of last row, before giving up on filling it. Prevents very big last rows.")
     parser.add_argument("-c", "--cover",          dest="cover",          default="none",         help="cover image filename regex, picked from images, auto for default")
+    parser.add_argument(      "--portraitcover",  dest="portraitcover",  default=False,          action="store_true", help="only use portrait images for cover")
     parser.add_argument(      "--font",           dest="font",           default="FreeSans.ttf", help="font file to use for title")
     parser.add_argument(      "--fontsize",       dest="fontsize",       default=24,             type=int, help="size of title text")
     parser.add_argument(      "--random",         dest="random",         default=False,          action="store_true", help="randomize order of images")
+    parser.add_argument(      "--imageskip",      dest="imageskip",      default=0,              type=int, help="only use every <n>th image")
     parser.add_argument("-r", "--recursive",      dest="recursive",      default=False,          action="store_true", help="recursive collect images from subfolders")
     parser.add_argument(      "--archives",       dest="archives",       default=False,          action="store_true", help="try to use zip/rar files as image sources")
     parser.add_argument(      "--subdircontacts", dest="subdircontacts", default=False,          action="store_true", help="recursively create contact sheets for subfolders")
@@ -891,6 +962,15 @@ if __name__ == "__main__":
     
     options = parser.parse_args()
 
+    if "-gui" in sys.argv[0]:
+        options.gui = True
+
+    # Running GUI and no options set? Load default.conf
+    if options.gui is not False and options.options is None:
+        options.options = os.path.join(basedir, "default.conf")
+        if not os.path.isfile(options.options):
+            options.options = None
+        # print "options file: ", options.options
 
     if not options.options is None:
         fh = open(options.options, "r")
@@ -902,9 +982,6 @@ if __name__ == "__main__":
         options = vars(options) # Turn into dict for easier load/save
 
     logLevel = options['loglevel']
-
-    if "-gui" in sys.argv[0]:
-        options["gui"] = True
 
     if options['gui']:
         
