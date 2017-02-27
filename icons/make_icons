@@ -1,0 +1,12 @@
+#!/bin/bash
+
+echo -n "Scaling icon: "
+
+for s in 256 48 32 24 16
+do
+
+    echo -n "$s "
+    convert -geometry ${s}x${s} icon.png "${s}x${s}.png"
+done
+
+echo "done."
