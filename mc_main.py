@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'mc_main.ui'
 #
-# Created: Fri Feb 10 15:55:15 2017
+# Created: Mon Mar 26 13:09:37 2018
 #      by: pyside-uic 0.2.13 running on PySide 1.2.2
 #
 # WARNING! All changes made in this file will be lost!
@@ -415,6 +415,12 @@ class Ui_mc_main(object):
         self.thumbCoverScaleS.addItem("")
         self.thumbCoverScaleS.addItem("")
         self.gridLayout_2.addWidget(self.thumbCoverScaleS, 4, 1, 1, 1)
+        self.thumbMinSizeL = QtGui.QLabel(self.thumbBox)
+        self.thumbMinSizeL.setObjectName("thumbMinSizeL")
+        self.gridLayout_2.addWidget(self.thumbMinSizeL, 5, 0, 1, 1)
+        self.thumbMinSizeE = QtGui.QLineEdit(self.thumbBox)
+        self.thumbMinSizeE.setObjectName("thumbMinSizeE")
+        self.gridLayout_2.addWidget(self.thumbMinSizeE, 5, 1, 1, 1)
         self.gridLayout_4.addWidget(self.thumbBox, 0, 1, 1, 1)
         self.titleBox = QtGui.QGroupBox(self.centralWidget)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Minimum)
@@ -748,6 +754,9 @@ class Ui_mc_main(object):
         self.thumbCoverScaleS.setItemText(3, QtGui.QApplication.translate("mc_main", "4 Thumbs High", None, QtGui.QApplication.UnicodeUTF8))
         self.thumbCoverScaleS.setItemText(4, QtGui.QApplication.translate("mc_main", "5 ThumbsHigh", None, QtGui.QApplication.UnicodeUTF8))
         self.thumbCoverScaleS.setItemText(5, QtGui.QApplication.translate("mc_main", "Full Sheet Width", None, QtGui.QApplication.UnicodeUTF8))
+        self.thumbMinSizeL.setText(QtGui.QApplication.translate("mc_main", "Min Size :", None, QtGui.QApplication.UnicodeUTF8))
+        self.thumbMinSizeE.setAccessibleDescription(QtGui.QApplication.translate("mc_main", "Minimum width/height for image to be included in sheet", None, QtGui.QApplication.UnicodeUTF8))
+        self.thumbMinSizeE.setText(QtGui.QApplication.translate("mc_main", "100", None, QtGui.QApplication.UnicodeUTF8))
         self.titleBox.setTitle(QtGui.QApplication.translate("mc_main", "Title Specs", None, QtGui.QApplication.UnicodeUTF8))
         self.titleT.setText(QtGui.QApplication.translate("mc_main", "Auto", None, QtGui.QApplication.UnicodeUTF8))
         self.titleSizeE.setAccessibleDescription(QtGui.QApplication.translate("mc_main", "File type/extension to use for sheet", None, QtGui.QApplication.UnicodeUTF8))
