@@ -140,6 +140,7 @@ class MCWindow(QMainWindow):
             self.ui.thumbCoverScaleS.setCurrentIndex(self.ui.thumbCoverScaleS.count() - 1)
         else:
             self.ui.thumbCoverScaleS.setCurrentIndex(options['coverscale'] - 1)
+        self.ui.thumbMinSizeE.setText("%d" % options['thumbminsize'])
 
         # Title Specs
         self.ui.titleEnableC.setChecked(options['title'] != "none")
@@ -212,6 +213,8 @@ class MCWindow(QMainWindow):
             self.options['random'] = self.ui.fileOrderC.currentIndex() == 1
             var = "Thumb Height"
             self.options['thumbheight'] = int(self.ui.thumbHeightE.text())
+            var = "Thumb Min Size"
+            self.options['thumbminsize'] = int(self.ui.thumbMinSizeE.text())
             var = "Title Enable"
             if self.ui.titleEnableC.isChecked():
                 if self.ui.titleT.isChecked():

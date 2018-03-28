@@ -273,7 +273,7 @@ def drawLabel(im, draw, text, pos, size, options):
 # if height == -1 determine it automatically
 # NOTE: imgs is changed! broken imges are removed and filenames may be replaced by actual images!
 
-def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None, fixedcoverheight = True, loptions = None, lastrowmaxscale = 1.25, labels = False, progress = None, archive = None):
+def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, crop = False, background = (255,255,255), topoffset = 0, border = 0, cover = None, fixedcoverheight = True, loptions = None, lastrowmaxscale = 1.25, labels = False, progress = None, archive = None, thumbminsize=0):
     
     if len(imgs) == 0:
         raise UserWarning("layoutImages: got no images to layout?!?\n")
@@ -462,6 +462,13 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                         imgs[curimg] = Image.open(StringIO(archive.read(imgs[curimg])))
                         imgs[curimg].filename = ifn
 
+                    if thumbminsize > 0:
+                        if imgs[curimg].size[0] < thumbminsize and imgs[curimg].size[1] < thumbminsize:
+                            log(LogLevels.DEBUG, "layoutImages: skipping (%d) %s, too small." % (curimg, imgs[curimg]))
+                            del imgs[curimg]
+                            nimgs -= 1
+                            continue
+                            
                     maxw = max(maxw, imgs[curimg].size[0])
                     maxh = max(maxh, imgs[curimg].size[1])
 
@@ -478,8 +485,12 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
                     del imgs[curimg]
                     nimgs -= 1
 
-            row.append(imgs[curimg])
-            curimg += 1
+            if len(imgs) == 0:
+                raise UserWarning("layoutImages: none of the images are readable (%s)!\n" % imgs)
+
+            if curimg < len(imgs):
+                row.append(imgs[curimg])
+                curimg += 1
 
             ts, rh, factor, leftover = layoutRow(row, rowwidth, border=border, thimgsize=thimgsize)
             log(LogLevels.DEBUG, "layoutImages: rowwidth=%s ts=%s rh=%s factor=%s leftover=%s\n" % (rowwidth, ts, rh, factor, leftover))
@@ -619,6 +630,12 @@ def layoutImages(width, height, imgs, thimgsize = 150, forceFullSize = True, cro
 
 def createContactSheet(options, folder, progress = None):
 
+    fskip = re.compile(options['skips'])
+
+    if fskip.match(folder):
+        log(LogLevels.INFO, "%s matches skip rules, skipping.\n" % folder)
+        return
+
     archive = None
 
     outname = options['output']
@@ -657,7 +674,7 @@ def createContactSheet(options, folder, progress = None):
 
         files = []
         for f in archive.infolist():
-            if fre.match(f.filename):
+            if fre.match(f.filename) and not fskip.match(f.filename):
                 files.append(f.filename)
 
     elif os.path.isfile(folder) and rarfile.is_rarfile(folder):
@@ -665,7 +682,7 @@ def createContactSheet(options, folder, progress = None):
 
         files = []
         for f in archive.infolist():
-            if fre.match(f.filename):
+            if fre.match(f.filename) and not fskip.match(f.filename):
                 files.append(f.filename)
 
     elif os.path.isfile(folder) and sevenzfile.is_7zfile(folder):
@@ -673,16 +690,16 @@ def createContactSheet(options, folder, progress = None):
 
         files = []
         for f in archive.infolist():
-            if fre.match(f.filename):
+            if fre.match(f.filename) and not fskip.match(f.filename):
                 files.append(f.filename)
 
     elif not options['recursive']:
         files = os.listdir(folder)
-        files = [ os.path.join(folder,f) for f in files if fre.match(f) ]
+        files = [ os.path.join(folder,f) for f in files if fre.match(f) and not fskip.match(f) ]
     else:
         files = []
         for root, dirs, dfiles in os.walk(folder):
-            files += [os.path.join(root, f) for f in dfiles if fre.match(f) ]
+            files += [os.path.join(root, f) for f in dfiles if fre.match(f) and not fskip.match(f) ]
 
 
     if len(files) == 0:
@@ -782,7 +799,7 @@ def createContactSheet(options, folder, progress = None):
 
     if options['title'] == "none":
         sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], border = options['border'], 
-                                        forceFullSize = False, labels = options['labels'], lastrowmaxscale = options['lastrowmaxscale'], progress=progress)
+                                        forceFullSize = False, labels = options['labels'], lastrowmaxscale = options['lastrowmaxscale'], progress=progress, thumbminsize=options['thumbminsize'])
     else:
 
         if not os.path.isfile(options['font']):
@@ -799,7 +816,13 @@ def createContactSheet(options, folder, progress = None):
 
         fh += 2 # Add a little border
 
-        sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], topoffset = fh, border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress, archive=archive)
+        try:
+            sheet, maxw, maxh = layoutImages(options['width'], options['height'], files, cover=cover, thimgsize = options['thumbheight'], background = options['background'], topoffset = fh,
+                                              border = options['border'], forceFullSize = False, labels = options['labels'], loptions = options, progress=progress, archive=archive,
+                                              thumbminsize=options['thumbminsize'])
+        except UserWarning as e:
+            log(LogLevels.WARNING, "\nCaught %s processing folder %s, skipping!\n" % (e, folder))
+            return
 
         draw = ImageDraw.Draw(sheet)
 
@@ -887,9 +910,15 @@ def processFolder(options, folder, progress = None):
     if options["subdircontacts"] == False:
         createContactSheet(options, folder, progress)
     else:
+        reskips = re.compile(options["skips"])
+
         for r in os.walk(folder):
 
             f = r[0].replace(os.path.sep, '/')
+
+            if reskips.match(f):
+                log(LogLevels.WARNING, "Folder %s matched skipre, skipping!\n" % f)
+                continue
 
             # Any images in this folder?
             files = [ ff for ff in os.listdir(f) if fre.match(ff) ]
@@ -932,10 +961,12 @@ if __name__ == "__main__":
     parser.add_argument(      "--outdir",         dest="outdir",         default="auto",         help="output firectory for contact sheets, or auto")
     parser.add_argument(      "--quality",        dest="quality",        default=85,             type=int, help="output JPEG quality")
     parser.add_argument(      "--thumbheight",    dest="thumbheight",    default=200,            type=int, help="height of thumbnails")
+    parser.add_argument(      "--thumbminsize",   dest="thumbminsize",   default=0,              type=int, help="minimum dimension of image to be included in sheet")
     parser.add_argument(      "--width",          dest="width",          default=900,            type=int, help="width of contact sheet")
     parser.add_argument(      "--height",         dest="height",         default=-1,             type=int, help="height of contact sheet (-1: auto-detect)")
     parser.add_argument("-b", "--background",     dest="background",     default="#000000",      help="background color")
     parser.add_argument(      "--filetype",       dest="filetype",       default=".*\.(jpg|jpeg|JPG|JPEG)$",        help="regex expression to pick files to use")
+    parser.add_argument(      "--skips",          dest="skips",          default=".*(\.DS_Store|__MACOSX).*$",        help="regex expression to pick files/dirs not to use")
     parser.add_argument("-t", "--title",          dest="title",          default="auto",         help="title to add to top of sheet, auto for default, none for none")
     parser.add_argument(      "--tstats",         dest="tstats",         default=False,          action="store_true", help="add statistics after title")
     parser.add_argument(      "--titlecolor",     dest="titlecolor",     default="#ffffff",      help="color of title text")
@@ -980,6 +1011,12 @@ if __name__ == "__main__":
         options = opt
     else:
         options = vars(options) # Turn into dict for easier load/save
+
+    # Options cleanup
+    # Never-matching RE from https://stackoverflow.com/questions/1723182/a-regex-that-will-never-be-matched-by-anything
+    for o in [("thumbminsize", 0), ("skips", "(?!x)x")]:
+        if not o[0] in options:
+            options[o[0]] = o[1]
 
     logLevel = options['loglevel']
 
