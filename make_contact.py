@@ -1014,7 +1014,7 @@ if __name__ == "__main__":
 
     # Options cleanup
     # Never-matching RE from https://stackoverflow.com/questions/1723182/a-regex-that-will-never-be-matched-by-anything
-    for o in [("thumbminsize", 0), ("skips", "(?!x)x")]:
+    for o in [("thumbminsize", 0), ("skips", ".*(\.DS_Store|__MACOSX).*$")]:
         if not o[0] in options:
             options[o[0]] = o[1]
 
